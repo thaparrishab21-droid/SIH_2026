@@ -1,16 +1,43 @@
-# React + Vite
+# 🌊 Flood-Flash Frontend Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A disaster management dashboard for officials monitoring landslide and flash-flood risk across hilly wards in real time.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## ⚡ Quickstart
 
-## React Compiler
+1. **Install Dependencies**:
+   ```bash
+   npm install
+   ```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+2. **Configure Environment Variables**:
+   Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+   Ensure `VITE_API_BASE_URL` points to your backend:
+   ```env
+   VITE_API_BASE_URL=http://localhost:8000
+   ```
 
-## Expanding the Oxlint configuration
+3. **Run Frontend Dev Server**:
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+---
+
+## 🛠️ CORS Troubleshooting Note
+
+If your browser console displays `CORS error` when calling `http://localhost:8000`:
+1. Ensure the FastAPI backend is running on `http://localhost:8000`.
+2. The FastAPI `main.py` includes CORS middleware permitting `http://localhost:5173`, `http://127.0.0.1:5173`, and `*`.
+3. If running frontend on a custom host or port (e.g. `http://localhost:3000`), update `CORS_ORIGINS` in `backend/config.py` or `.env`.
+
+---
+
+## ⚡ Live Demo Feature
+
+Use the **"⚡ Demo Spike Test"** button in the map control bar or Ward Detail panel to inject a live torrential rainfall simulation into the FastAPI risk engine (`POST /wards/{id}/simulate-reading`). This will immediately re-score risk to `CRITICAL` on the map and dispatch a real WhatsApp notification via Twilio!

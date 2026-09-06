@@ -1,0 +1,22 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+frontend/.env
+backend/.env
+
+# SQLite Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Node & Build artifacts
+node_modules/
+dist/
+.vite/
