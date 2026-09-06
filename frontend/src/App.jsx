@@ -6,7 +6,9 @@ import WardDetailPanel from './components/WardDetailPanel';
 import TriggerAlertModal from './components/TriggerAlertModal';
 import DisseminationLog from './components/DisseminationLog';
 import SystemHealth from './components/SystemHealth';
+import ReliefRecoveryView from './components/ReliefRecoveryView';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
+
 import LoginModal from './components/LoginModal';
 
 import { 
@@ -160,9 +162,8 @@ export default function App() {
       (wsEvent) => {
         setWsConnected(true);
         console.log("⚡ Real-Time WS Event:", wsEvent);
-
-        if (wsEvent.type === 'risk_update' || wsEvent.type === 'alert_triggered') {
-          const isAlert = wsEvent.type === 'alert_triggered';
+        if (wsEvent.event === 'risk_update' || wsEvent.event === 'alert_triggered') {
+          const isAlert = wsEvent.event === 'alert_triggered';
           const icon = isAlert ? '🚨 DISASTER ALERT TRIGGERED' : '⚡ REAL-TIME RISK ELEVATION';
           setToastMessage(
             `${icon}: ${wsEvent.ward_name} is now ${wsEvent.risk_level.toUpperCase()} (Score: ${wsEvent.risk_score})`
@@ -171,6 +172,13 @@ export default function App() {
 
           fetchWardsData(true);
           fetchAlertsData();
+        } else if (wsEvent.event === 'incident_activated') {
+          setToastMessage(`🚨 INCIDENT ACTIVATED: ${wsEvent.ward_name}. Relief portal is now LIVE.`);
+          setTimeout(() => setToastMessage(null), 8000);
+          fetchWardsData(true);
+        } else if (wsEvent.event === 'relief_request_added') {
+          setToastMessage(`🆘 NEW RELIEF REQUEST: ${wsEvent.ward_name} reported ${wsEvent.need_type.toUpperCase()} need (${wsEvent.urgency.toUpperCase()} urgency).`);
+          setTimeout(() => setToastMessage(null), 6000);
         }
       },
       (err) => {
@@ -220,7 +228,9 @@ export default function App() {
         setActiveTab('map');
       } else if (e.key === '2' || e.key === 'l' || e.key === 'L') {
         setActiveTab('alerts');
-      } else if (e.key === '3' || e.key === 'h' || e.key === 'H') {
+      } else if (e.key === '3' || e.key === 'r' || e.key === 'R') {
+        setActiveTab('relief');
+      } else if (e.key === '4' || e.key === 'h' || e.key === 'H') {
         setActiveTab('health');
       } else if (e.key === '?' || e.key === '/') {
         setIsShortcutsOpen((prev) => !prev);
@@ -372,11 +382,23 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'relief' && (
+          <ReliefRecoveryView
+            wards={wards}
+            selectedWard={selectedWard}
+            onSelectWard={setSelectedWard}
+            currentUser={currentUser}
+            highContrast={highContrast}
+            setToastMessage={setToastMessage}
+          />
+        )}
+
         {activeTab === 'health' && (
           <SystemHealth
             highContrast={highContrast}
           />
         )}
+
 
         {/* Slide-in Ward Detail Panel (Shown on Map view if ward selected) */}
         {activeTab === 'map' && selectedWard && (

@@ -135,9 +135,94 @@ def run_tests():
     assert "whatsapp" in channels_sent, "WhatsApp channel must be present for opted-in subscribers"
     print(f"[OK] Official Role Access Authorized (200 OK): Dispatched to {trig_res['recipient_count']} recipients via Multi-lingual WhatsApp/SMS (WhatsApp: {dispatch_summary['whatsapp_sent']}, SMS Fallback: {dispatch_summary['sms_sent']}).")
 
+    print("\n--- 9. Testing Post-Disaster Relief & Community Support Endpoints ---")
+    # Test A: GET /donation-links
+    res_donations = client.get("/donation-links")
+    assert res_donations.status_code == 200
+    donations = res_donations.json()
+    assert len(donations) >= 3
+    print(f"[OK] GET /donation-links Passed: {len(donations)} curated third-party donation funds available.")
+
+    # Test B: GET /wards/1/relief-status (Public view -> Phone numbers masked)
+    res_relief = client.get("/wards/1/relief-status")
+    assert res_relief.status_code == 200
+    relief_data = res_relief.json()
+    assert relief_data["incident_status"]["incident_active"] is True
+    assert len(relief_data["relief_requests"]) >= 3
+    public_req = relief_data["relief_requests"][0]
+    assert "*" in public_req["requester_phone"], "Public requester phone MUST be masked for privacy"
+    print(f"[OK] GET /wards/1/relief-status Passed: Active incident verified. Requester phone masked for public ({public_req['requester_phone']}).")
+
+    # Test C: GET /wards/1/relief-status (Official authenticated view -> Phone numbers unmasked)
+    res_relief_off = client.get("/wards/1/relief-status", headers={"Authorization": f"Bearer {official_token}"})
+    assert res_relief_off.status_code == 200
+    off_relief_data = res_relief_off.json()
+    official_req = off_relief_data["relief_requests"][0]
+    assert "*" not in official_req["requester_phone"], "Official viewer MUST see unmasked requester phone number"
+    print(f"[OK] Authenticated Official Relief View Passed: Unmasked requester phone accessible ({official_req['requester_phone']}).")
+
+    # Test D: Public submission of Relief Request (No auth needed)
+    new_req_input = {
+        "ward_id": 1,
+        "requester_name": "Villager Harish Chandra",
+        "requester_phone": "+919876599999",
+        "need_type": "shelter",
+        "description": "Family of 4 needs emergency dry shelter kits after roof damage.",
+        "people_affected_count": 4,
+        "urgency": "high"
+    }
+    res_post_req = client.post("/relief-requests", json=new_req_input)
+    assert res_post_req.status_code == 200
+    created_req = res_post_req.json()
+    assert created_req["status"] == "open"
+    assert created_req["requester_name"] == "Villager Harish Chandra"
+    print(f"[OK] Public POST /relief-requests Passed: Successfully submitted need request ID {created_req['id']} without login.")
+
+    # Test E: Public registration of Relief Provider
+    new_prov_input = {
+        "name": "Chamoli Local Disaster Relief Group",
+        "type": "ngo",
+        "phone": "+919811122233",
+        "what_they_can_offer": "30 tents and emergency cooking stoves",
+        "ward_ids_covered": "1,2,3"
+    }
+    res_post_prov = client.post("/relief-providers", json=new_prov_input)
+    assert res_post_prov.status_code == 200
+    created_prov = res_post_prov.json()
+    assert created_prov["verified"] is False, "New public provider registration MUST start as unverified"
+    print(f"[OK] Public POST /relief-providers Passed: Helper registered (ID {created_prov['id']}, Verified: False).")
+
+    # Test F: Official verifies Relief Provider
+    res_verify = client.patch(
+        f"/relief-providers/{created_prov['id']}/verify",
+        headers={"Authorization": f"Bearer {official_token}"}
+    )
+    assert res_verify.status_code == 200
+    verified_prov = res_verify.json()
+    assert verified_prov["verified"] is True
+    print(f"[OK] Official PATCH /relief-providers/{created_prov['id']}/verify Passed: Provider marked verified.")
+
+    # Test G: Official activates & deactivates incident for Ward 2
+    res_act = client.post(
+        "/wards/2/activate-incident",
+        json={"description": "Test Cloudburst incident declared for Guptkashi Hill Ward"},
+        headers={"Authorization": f"Bearer {official_token}"}
+    )
+    assert res_act.status_code == 200
+    assert res_act.json()["incident_active"] is True
+
+    res_deact = client.post(
+        "/wards/2/deactivate-incident",
+        headers={"Authorization": f"Bearer {official_token}"}
+    )
+    assert res_deact.status_code == 200
+    assert res_deact.json()["incident_active"] is False
+    print("[OK] Official Activate & Deactivate Incident Endpoints Passed.")
+
     print("\n==========================================")
     print("ALL API & RBAC TESTS PASSED SUCCESSFULLY!")
     print("==========================================")
 
 if __name__ == "__main__":
     run_tests()
+

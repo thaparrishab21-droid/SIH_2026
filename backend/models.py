@@ -30,6 +30,9 @@ class Ward(Base):
     incidents = relationship("HistoricalIncident", back_populates="ward", cascade="all, delete-orphan")
     alerts = relationship("Alert", back_populates="ward", cascade="all, delete-orphan")
     subscribers = relationship("Subscriber", back_populates="ward", cascade="all, delete-orphan")
+    incident_status = relationship("IncidentStatus", back_populates="ward", uselist=False, cascade="all, delete-orphan")
+    relief_requests = relationship("ReliefRequest", back_populates="ward", cascade="all, delete-orphan")
+    donation_links = relationship("DonationLink", back_populates="ward", cascade="all, delete-orphan")
 
 class SafeZone(Base):
     __tablename__ = "safe_zones"
@@ -109,3 +112,64 @@ class Subscriber(Base):
     preferred_language = Column(String, nullable=False, default="en")  # en (English), hi (Hindi), gar (Garhwali)
 
     ward = relationship("Ward", back_populates="subscribers")
+
+class IncidentStatus(Base):
+    __tablename__ = "incident_statuses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ward_id = Column(Integer, ForeignKey("wards.id"), unique=True, nullable=False, index=True)
+    incident_active = Column(Boolean, nullable=False, default=False)
+    incident_started_at = Column(DateTime, nullable=True)
+    incident_description = Column(Text, nullable=True)
+    official_who_activated_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    ward = relationship("Ward", back_populates="incident_status")
+    official_who_activated = relationship("User")
+
+class ReliefProvider(Base):
+    __tablename__ = "relief_providers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    type = Column(String, nullable=False)  # individual, ngo, govt_agency, business
+    phone = Column(String, nullable=False)
+    what_they_can_offer = Column(Text, nullable=False)
+    ward_ids_covered = Column(String, nullable=False)  # comma-separated ward IDs e.g. "1,2,3"
+    verified = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_hidden = Column(Boolean, nullable=False, default=False)
+
+    fulfilled_requests = relationship("ReliefRequest", back_populates="fulfilled_by")
+
+class ReliefRequest(Base):
+    __tablename__ = "relief_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ward_id = Column(Integer, ForeignKey("wards.id"), nullable=False, index=True)
+    requester_name = Column(String, nullable=False)
+    requester_phone = Column(String, nullable=False)
+    need_type = Column(String, nullable=False)  # shelter, food, medical, water, clothing, rescue, other
+    description = Column(Text, nullable=False)
+    people_affected_count = Column(Integer, nullable=False, default=1)
+    urgency = Column(String, nullable=False, default="medium")  # low, medium, high, critical
+    status = Column(String, nullable=False, default="open")  # open, in_progress, fulfilled
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    fulfilled_by_id = Column(Integer, ForeignKey("relief_providers.id"), nullable=True)
+    fulfilled_at = Column(DateTime, nullable=True)
+    is_hidden = Column(Boolean, nullable=False, default=False)
+
+    ward = relationship("Ward", back_populates="relief_requests")
+    fulfilled_by = relationship("ReliefProvider", back_populates="fulfilled_requests")
+
+class DonationLink(Base):
+    __tablename__ = "donation_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ward_id = Column(Integer, ForeignKey("wards.id"), nullable=True, index=True)
+    organization_name = Column(String, nullable=False)
+    organization_type = Column(String, nullable=False)  # e.g., State Disaster Response Fund, Verified NGO
+    donation_url = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+
+    ward = relationship("Ward", back_populates="donation_links")
+

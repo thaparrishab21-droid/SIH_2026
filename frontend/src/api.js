@@ -344,3 +344,74 @@ export function connectWebSocket(onMessageCallback) {
     }
   };
 }
+
+// --- Post-Disaster Relief & Recovery APIs ---
+export async function activateWardIncident(wardId, description) {
+  const numericId = typeof wardId === 'string' ? parseInt(wardId.replace(/\D/g, ''), 10) : wardId;
+  return await apiFetch(`/wards/${numericId}/activate-incident`, {
+    method: 'POST',
+    body: JSON.stringify({ description })
+  });
+}
+
+export async function deactivateWardIncident(wardId) {
+  const numericId = typeof wardId === 'string' ? parseInt(wardId.replace(/\D/g, ''), 10) : wardId;
+  return await apiFetch(`/wards/${numericId}/deactivate-incident`, {
+    method: 'POST'
+  });
+}
+
+export async function getWardReliefStatus(wardId) {
+  const numericId = typeof wardId === 'string' ? parseInt(wardId.replace(/\D/g, ''), 10) : wardId;
+  return await apiFetch(`/wards/${numericId}/relief-status`);
+}
+
+export async function submitReliefRequest(requestData) {
+  const numericId = typeof requestData.wardId === 'string' ? parseInt(requestData.wardId.replace(/\D/g, ''), 10) : requestData.wardId;
+  return await apiFetch('/relief-requests', {
+    method: 'POST',
+    body: JSON.stringify({
+      ward_id: numericId,
+      requester_name: requestData.requesterName,
+      requester_phone: requestData.requesterPhone,
+      need_type: requestData.needType,
+      description: requestData.description,
+      people_affected_count: parseInt(requestData.peopleAffectedCount || 1, 10),
+      urgency: requestData.urgency || 'medium',
+      honeypot_check: requestData.honeypotCheck || ''
+    })
+  });
+}
+
+export async function updateReliefRequestStatus(requestId, statusData) {
+  return await apiFetch(`/relief-requests/${requestId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(statusData)
+  });
+}
+
+export async function registerReliefProvider(providerData) {
+  return await apiFetch('/relief-providers', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: providerData.name,
+      type: providerData.type,
+      phone: providerData.phone,
+      what_they_can_offer: providerData.whatTheyCanOffer,
+      ward_ids_covered: providerData.wardIdsCovered || '*',
+      honeypot_check: providerData.honeypotCheck || ''
+    })
+  });
+}
+
+export async function verifyReliefProvider(providerId) {
+  return await apiFetch(`/relief-providers/${providerId}/verify`, {
+    method: 'PATCH'
+  });
+}
+
+export async function getDonationLinks(wardId) {
+  const query = wardId ? `?ward_id=${typeof wardId === 'string' ? parseInt(wardId.replace(/\D/g, ''), 10) : wardId}` : '';
+  return await apiFetch(`/donation-links${query}`);
+}
+

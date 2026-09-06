@@ -8,9 +8,13 @@ and multi-lingual subscribers with WhatsApp / SMS opt-in preferences.
 from datetime import datetime, timedelta
 import random
 from backend.database import SessionLocal, engine, Base
-from backend.models import Ward, SensorReading, RiskAssessment, HistoricalIncident, Subscriber, User, SafeZone
+from backend.models import (
+    Ward, SensorReading, RiskAssessment, HistoricalIncident, Subscriber, User, SafeZone,
+    IncidentStatus, ReliefRequest, ReliefProvider, DonationLink
+)
 from backend.risk_engine import calculate_risk
 from backend.auth import hash_password
+
 
 def seed_database():
     print("Re-creating database tables...")
@@ -386,7 +390,172 @@ def seed_database():
                 db.add(subscriber)
 
         db.commit()
-        print(f"Successfully seeded database with Users, Safe Zones, Wards, Multi-lingual Subscribers, and Sensor Readings.")
+
+        print("5. Seeding Relief Providers...")
+        provider1 = ReliefProvider(
+            name="Indian Red Cross Society (Uttarakhand Branch)",
+            type="ngo",
+            phone="+919812345678",
+            what_they_can_offer="Emergency medical first-aid kits, water purification tablets, high-altitude tents, and dry ration kits.",
+            ward_ids_covered="1,6,7,8",
+            verified=True,
+            created_at=datetime.utcnow() - timedelta(days=2)
+        )
+        provider2 = ReliefProvider(
+            name="Uttarakhand Mountain Rescue & Logistics Fleet",
+            type="business",
+            phone="+919876501234",
+            what_they_can_offer="4x4 Mahindra Boleros for emergency transit, rope evacuation gear, and heavy debris winch equipment.",
+            ward_ids_covered="*",
+            verified=True,
+            created_at=datetime.utcnow() - timedelta(days=5)
+        )
+        provider3 = ReliefProvider(
+            name="Garhwal Yuva Relief Samiti",
+            type="individual",
+            phone="+919845678901",
+            what_they_can_offer="Volunteer workforce for clearing mudslides, distributing cooked meals, and setting up solar lamps.",
+            ward_ids_covered="1,6",
+            verified=False,
+            created_at=datetime.utcnow() - timedelta(hours=18)
+        )
+        db.add(provider1)
+        db.add(provider2)
+        db.add(provider3)
+        db.flush()
+
+        print("6. Seeding Active Incident Statuses & Relief Requests...")
+        # Active Incident Wards: 1 (Kedarnath Town Ward), 6 (Sonprayag Transit Hub), 7 (Joshimath Upper Bazar)
+        inc1 = IncidentStatus(
+            ward_id=1,
+            incident_active=True,
+            incident_started_at=datetime.utcnow() - timedelta(hours=8),
+            incident_description="Severe monsoonal cloudburst & rapid slope collapse along Mandakini valley catchment. Evacuation in progress.",
+            official_who_activated_id=official_user.id
+        )
+        inc6 = IncidentStatus(
+            ward_id=6,
+            incident_active=True,
+            incident_started_at=datetime.utcnow() - timedelta(hours=4),
+            incident_description="Debris flow & riverbed overflow blocking NH-107 transit corridor. Relief camp operational at Mandakini Helipad Ground.",
+            official_who_activated_id=official_user.id
+        )
+        inc7 = IncidentStatus(
+            ward_id=7,
+            incident_active=True,
+            incident_started_at=datetime.utcnow() - timedelta(hours=14),
+            incident_description="Substantial land subsidence & structural wall fractures requiring immediate evacuation to Army Helipad shelter.",
+            official_who_activated_id=official_user.id
+        )
+        db.add(inc1)
+        db.add(inc6)
+        db.add(inc7)
+
+        # Seed initial Relief Requests
+        reqs = [
+            ReliefRequest(
+                ward_id=1,
+                requester_name="Gram Pradhan Rameshwar Negi",
+                requester_phone="+919876543201",
+                need_type="food",
+                description="Urgent requirement for 50 dry ration packets and clean drinking water jerrycans for stranded pilgrims.",
+                people_affected_count=45,
+                urgency="critical",
+                status="open",
+                created_at=datetime.utcnow() - timedelta(hours=6)
+            ),
+            ReliefRequest(
+                ward_id=1,
+                requester_name="Dr. Anita Sharma (PHC Kedarnath)",
+                requester_phone="+919876543202",
+                need_type="medical",
+                description="Emergency trauma kits, wound dressings, and Portable Oxygen Cylinders required at medical aid post.",
+                people_affected_count=12,
+                urgency="critical",
+                status="in_progress",
+                fulfilled_by_id=provider1.id,
+                created_at=datetime.utcnow() - timedelta(hours=5)
+            ),
+            ReliefRequest(
+                ward_id=1,
+                requester_name="Sunil Kumar (Local Volunteer)",
+                requester_phone="+919876543203",
+                need_type="shelter",
+                description="30 waterproof tarpaulins and heavy-duty fleece blankets for families displaced by slope movement.",
+                people_affected_count=30,
+                urgency="high",
+                status="open",
+                created_at=datetime.utcnow() - timedelta(hours=3)
+            ),
+            ReliefRequest(
+                ward_id=6,
+                requester_name="Vikram Singh Rawat",
+                requester_phone="+919876543206",
+                need_type="water",
+                description="Drinking water supply disrupted due to pipeline washout. 500L water tanker needed near transit camp.",
+                people_affected_count=80,
+                urgency="high",
+                status="open",
+                created_at=datetime.utcnow() - timedelta(hours=2)
+            ),
+            ReliefRequest(
+                ward_id=6,
+                requester_name="Pooja Devi (Asha Lead)",
+                requester_phone="+919876543207",
+                need_type="clothing",
+                description="Dry clothes and baby milk powder for 15 children housed at Mandakini Helipad shelter.",
+                people_affected_count=15,
+                urgency="medium",
+                status="fulfilled",
+                fulfilled_by_id=provider2.id,
+                fulfilled_at=datetime.utcnow() - timedelta(hours=1),
+                created_at=datetime.utcnow() - timedelta(hours=4)
+            ),
+            ReliefRequest(
+                ward_id=7,
+                requester_name="Subedar Major (Retd) H. S. Bisht",
+                requester_phone="+919876543210",
+                need_type="rescue",
+                description="Heavy excavator & winch assistance needed to clear rockfall obstructing evacuation path near Upper Bazar.",
+                people_affected_count=22,
+                urgency="critical",
+                status="open",
+                created_at=datetime.utcnow() - timedelta(hours=7)
+            )
+        ]
+        for r in reqs:
+            db.add(r)
+
+        print("7. Seeding Curated External Donation Links...")
+        donations = [
+            DonationLink(
+                ward_id=None,
+                organization_name="Uttarakhand State Disaster Response Fund (SDRF)",
+                organization_type="State Government Disaster Fund",
+                donation_url="https://cmrf.uk.gov.in",
+                description="Official Chief Minister's Relief Fund & SDRF account dedicated to emergency relief, evacuation, and mountain rehabilitation across Uttarakhand."
+            ),
+            DonationLink(
+                ward_id=None,
+                organization_name="Prime Minister's National Relief Fund (PMNRF)",
+                organization_type="National Statutory Relief Fund",
+                donation_url="https://pmnrf.gov.in",
+                description="National fund providing immediate financial assistance to families affected by major natural disasters and cloudburst events."
+            ),
+            DonationLink(
+                ward_id=1,
+                organization_name="Himalayan Relief & Rehabilitation Trust",
+                organization_type="Verified Registered NGO",
+                donation_url="https://himalayanrelief.org",
+                description="On-ground Uttarakhand registered charity distributing emergency rations, solar lanterns, and medical supplies directly in high-altitude hill wards."
+            )
+        ]
+        for d in donations:
+            db.add(d)
+
+        db.commit()
+        print(f"Successfully seeded database with Users, Safe Zones, Wards, Active Incidents, Relief Requests, Relief Providers, Donation Links, and Sensor Telemetry.")
+
     except Exception as e:
         db.rollback()
         print(f"Error seeding database: {e}")

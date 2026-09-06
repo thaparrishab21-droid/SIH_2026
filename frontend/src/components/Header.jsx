@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, Activity, Radio, FileText, Monitor, HelpCircle, AlertOctagon, UserCheck, LogIn, LogOut } from 'lucide-react';
+import { ShieldAlert, Activity, Radio, FileText, Monitor, HelpCircle, AlertOctagon, UserCheck, LogIn, LogOut, HeartHandshake } from 'lucide-react';
+
 
 export default function Header({ 
   activeTab, 
@@ -103,6 +104,18 @@ export default function Header({
           </button>
 
           <button
+            onClick={() => setActiveTab('relief')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-semibold transition-all ${
+              activeTab === 'relief'
+                ? 'bg-emerald-600 text-white shadow-sm font-bold'
+                : 'text-emerald-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <HeartHandshake className="w-4 h-4 text-emerald-400" />
+            <span>Relief & Community Recovery</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('health')}
             className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-semibold transition-all ${
               activeTab === 'health'
@@ -114,6 +127,7 @@ export default function Header({
             <span>Data Sources & Mesh</span>
           </button>
         </nav>
+
 
         {/* Right: User Auth Badge & Clock */}
         <div className="flex items-center gap-3">

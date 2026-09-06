@@ -166,3 +166,92 @@ class SimulateReadingInput(BaseModel):
     rainfall_72h_mm: Optional[float] = None
     soil_moisture_pct: Optional[float] = None
     slope_angle_deg: Optional[float] = None
+
+# --- Incident & Relief Schemas ---
+class IncidentStatusActivate(BaseModel):
+    description: Optional[str] = None
+
+class IncidentStatusOut(BaseModel):
+    ward_id: int
+    incident_active: bool
+    incident_started_at: Optional[datetime] = None
+    incident_description: Optional[str] = None
+    official_who_activated: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class ReliefRequestCreate(BaseModel):
+    ward_id: int
+    requester_name: str
+    requester_phone: str
+    need_type: str  # shelter, food, medical, water, clothing, rescue, other
+    description: str
+    people_affected_count: int = Field(default=1, ge=1)
+    urgency: str = Field(default="medium")  # low, medium, high, critical
+    honeypot_check: Optional[str] = None  # Anti-spam field, must be empty
+
+class ReliefRequestUpdate(BaseModel):
+    status: Optional[str] = None  # open, in_progress, fulfilled
+    fulfilled_by_id: Optional[int] = None
+    is_hidden: Optional[bool] = None
+
+class ReliefRequestOut(BaseModel):
+    id: int
+    ward_id: int
+    requester_name: str
+    requester_phone: str  # May be obfuscated depending on role
+    need_type: str
+    description: str
+    people_affected_count: int
+    urgency: str
+    status: str
+    created_at: datetime
+    fulfilled_by_id: Optional[int] = None
+    fulfilled_at: Optional[datetime] = None
+    is_hidden: bool = False
+
+    class Config:
+        from_attributes = True
+
+class ReliefProviderCreate(BaseModel):
+    name: str
+    type: str  # individual, ngo, govt_agency, business
+    phone: str
+    what_they_can_offer: str
+    ward_ids_covered: str
+    honeypot_check: Optional[str] = None  # Anti-spam field, must be empty
+
+class ReliefProviderOut(BaseModel):
+    id: int
+    name: str
+    type: str
+    phone: str
+    what_they_can_offer: str
+    ward_ids_covered: str
+    verified: bool
+    created_at: datetime
+    is_hidden: bool = False
+
+    class Config:
+        from_attributes = True
+
+class DonationLinkOut(BaseModel):
+    id: int
+    ward_id: Optional[int] = None
+    organization_name: str
+    organization_type: str
+    donation_url: str
+    description: str
+
+    class Config:
+        from_attributes = True
+
+class WardReliefStatusOut(BaseModel):
+    ward_id: int
+    ward_name: str
+    district: str
+    incident_status: IncidentStatusOut
+    relief_requests: List[ReliefRequestOut]
+    relief_providers: List[ReliefProviderOut]
+

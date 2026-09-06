@@ -2,26 +2,53 @@ import json
 import logging
 import asyncio
 from datetime import datetime, timedelta
+import time
+from collections import defaultdict
 from typing import List, Optional
 
-from fastapi import FastAPI, Depends, HTTPException, Query, Response, WebSocket, WebSocketDisconnect, status
+from fastapi import FastAPI, Depends, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, text
 
 from backend.config import settings
 from backend.database import get_db, engine, Base
-from backend.models import Ward, SensorReading, RiskAssessment, HistoricalIncident, Alert, Subscriber, User, SafeZone
+from backend.models import (
+    Ward, SensorReading, RiskAssessment, HistoricalIncident, Alert, Subscriber, User, SafeZone,
+    IncidentStatus, ReliefRequest, ReliefProvider, DonationLink
+)
 from backend.schemas import (
     WardOut, WardDetailOut, SensorReadingOut, SensorReadingCreate,
     RiskAssessmentOut, HistoricalIncidentOut, AlertOut, AlertTriggerRequest,
-    SimulateReadingInput, SubscriberOut, LoginRequest, TokenResponse, UserOut, SafeZoneOut
+    SimulateReadingInput, SubscriberOut, LoginRequest, TokenResponse, UserOut, SafeZoneOut,
+    IncidentStatusActivate, IncidentStatusOut, ReliefRequestCreate, ReliefRequestUpdate,
+    ReliefRequestOut, ReliefProviderCreate, ReliefProviderOut, DonationLinkOut
 )
 from backend.risk_engine import calculate_risk
 from backend.whatsapp_service import broadcast_ward_alert
 from backend.auth import hash_password, verify_password, create_access_token, get_current_user, require_official_role, get_current_user_optional
 from backend.safe_zone_service import get_nearest_safe_zone
 from backend.pdf_service import generate_ward_pdf_report
+
+# Simple in-memory rate-limiter: max 5 public submissions per 10 minutes per IP
+IP_SUBMISSION_LOGS = defaultdict(list)
+
+def check_ip_rate_limit(ip_address: str, max_requests: int = 5, window_seconds: int = 600):
+    now = time.time()
+    timestamps = [ts for ts in IP_SUBMISSION_LOGS[ip_address] if now - ts < window_seconds]
+    if len(timestamps) >= max_requests:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded: Too many submissions from your IP address. Please wait a few minutes."
+        )
+    timestamps.append(now)
+    IP_SUBMISSION_LOGS[ip_address] = timestamps
+
+def mask_phone_number(phone: str) -> str:
+    if not phone or len(phone) < 6:
+        return "******"
+    return phone[:4] + "*" * (len(phone) - 6) + phone[-2:]
+
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -99,8 +126,11 @@ async def periodic_risk_monitor():
                     # Escalation check: Safe/Watch -> Warning/Critical
                     if new_level in ["Warning", "Critical"] and prev_level not in ["Warning", "Critical"]:
                         logger.warning(f"AUTO-ALERT TRIGGERED: Ward {ward.name} escalated from {prev_level} to {new_level}")
+                        if new_level == "Critical":
+                            ensure_incident_active(ward.id, db, description=f"Auto-activated upon Critical risk escalation ({ward.name})")
                         
                         assessment = RiskAssessment(
+
                             ward_id=ward.id,
                             timestamp=datetime.utcnow(),
                             risk_level=new_level,
@@ -601,7 +631,10 @@ async def simulate_sensor_reading(
 
     if new_level in ["Warning", "Critical"] and prev_level not in ["Warning", "Critical"]:
         alert_triggered = True
+        if new_level == "Critical":
+            ensure_incident_active(ward.id, db, official_id=current_official.id, description=f"Critical monsoonal hazard escalation simulated for {ward.name}")
         subscribers = db.query(Subscriber).filter(Subscriber.ward_id == ward_id).all()
+
         dispatch_info = broadcast_ward_alert(
             subscribers=subscribers,
             ward_name=ward.name,
@@ -709,7 +742,12 @@ async def trigger_manual_alert(
     else:
         risk_level = req.risk_level
 
+    if risk_level == "Critical":
+        ensure_incident_active(ward.id, db, official_id=current_official.id, description=req.custom_message or f"Critical emergency alert declared for {ward.name}")
+
+
     subscribers = db.query(Subscriber).filter(Subscriber.ward_id == ward.id).all()
+
     nearest_sz = get_nearest_safe_zone(ward.latitude, ward.longitude, db, ward.district)
 
     dispatch_res = broadcast_ward_alert(
@@ -756,3 +794,348 @@ async def trigger_manual_alert(
         "triggered_by": current_official.full_name,
         "dispatch_summary": dispatch_res
     }
+
+# --- Relief & Recovery Endpoints ---
+
+def ensure_incident_active(ward_id: int, db: Session, official_id: Optional[int] = None, description: Optional[str] = None):
+    inc_status = db.query(IncidentStatus).filter(IncidentStatus.ward_id == ward_id).first()
+    if not inc_status:
+        inc_status = IncidentStatus(
+            ward_id=ward_id,
+            incident_active=True,
+            incident_started_at=datetime.utcnow(),
+            incident_description=description or "Auto-activated upon Critical Monsoonal Risk Escalation",
+            official_who_activated_id=official_id
+        )
+        db.add(inc_status)
+    elif not inc_status.incident_active:
+        inc_status.incident_active = True
+        inc_status.incident_started_at = datetime.utcnow()
+        if description:
+            inc_status.incident_description = description
+        if official_id:
+            inc_status.official_who_activated_id = official_id
+    db.commit()
+
+@app.post("/wards/{ward_id}/activate-incident", response_model=IncidentStatusOut, tags=["Relief & Recovery"])
+async def activate_ward_incident(
+    ward_id: int,
+    req: Optional[IncidentStatusActivate] = None,
+    db: Session = Depends(get_db),
+    current_official: User = Depends(require_official_role)
+):
+    """
+    Official-only endpoint: Marks a ward's incident_active = True, making its relief page live.
+    """
+    ward = db.query(Ward).filter(Ward.id == ward_id).first()
+    if not ward:
+        raise HTTPException(status_code=404, detail="Ward not found")
+
+    inc_status = db.query(IncidentStatus).filter(IncidentStatus.ward_id == ward_id).first()
+    desc_text = req.description if req and req.description else f"Emergency active incident declared for {ward.name} by SDMA Disaster Management Cell."
+    
+    if not inc_status:
+        inc_status = IncidentStatus(
+            ward_id=ward.id,
+            incident_active=True,
+            incident_started_at=datetime.utcnow(),
+            incident_description=desc_text,
+            official_who_activated_id=current_official.id
+        )
+        db.add(inc_status)
+    else:
+        inc_status.incident_active = True
+        inc_status.incident_started_at = datetime.utcnow()
+        inc_status.incident_description = desc_text
+        inc_status.official_who_activated_id = current_official.id
+
+    db.commit()
+    db.refresh(inc_status)
+
+    await ws_manager.broadcast({
+        "event": "incident_activated",
+        "ward_id": ward.id,
+        "ward_name": ward.name,
+        "description": inc_status.incident_description,
+        "started_at": inc_status.incident_started_at.isoformat() if inc_status.incident_started_at else None
+    })
+
+    return IncidentStatusOut(
+        ward_id=inc_status.ward_id,
+        incident_active=inc_status.incident_active,
+        incident_started_at=inc_status.incident_started_at,
+        incident_description=inc_status.incident_description,
+        official_who_activated=current_official.full_name
+    )
+
+@app.post("/wards/{ward_id}/deactivate-incident", response_model=IncidentStatusOut, tags=["Relief & Recovery"])
+async def deactivate_ward_incident(
+    ward_id: int,
+    db: Session = Depends(get_db),
+    current_official: User = Depends(require_official_role)
+):
+    """
+    Official-only endpoint: Marks a ward's incident_active = False when recovery is complete.
+    """
+    ward = db.query(Ward).filter(Ward.id == ward_id).first()
+    if not ward:
+        raise HTTPException(status_code=404, detail="Ward not found")
+
+    inc_status = db.query(IncidentStatus).filter(IncidentStatus.ward_id == ward_id).first()
+    if not inc_status:
+        inc_status = IncidentStatus(
+            ward_id=ward.id,
+            incident_active=False,
+            incident_started_at=None,
+            incident_description="Recovery declared complete.",
+            official_who_activated_id=current_official.id
+        )
+        db.add(inc_status)
+    else:
+        inc_status.incident_active = False
+        inc_status.incident_description = f"Recovery declared complete by {current_official.full_name}."
+
+    db.commit()
+    db.refresh(inc_status)
+
+    await ws_manager.broadcast({
+        "event": "incident_deactivated",
+        "ward_id": ward.id,
+        "ward_name": ward.name
+    })
+
+    return IncidentStatusOut(
+        ward_id=inc_status.ward_id,
+        incident_active=inc_status.incident_active,
+        incident_started_at=inc_status.incident_started_at,
+        incident_description=inc_status.incident_description,
+        official_who_activated=current_official.full_name
+    )
+
+@app.get("/wards/{ward_id}/relief-status", tags=["Relief & Recovery"])
+def get_ward_relief_status(
+    ward_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """
+    Returns incident status + open/fulfilled relief requests + relief providers for a ward.
+    Requester phone numbers are masked for public/unauthenticated users to prevent abuse/harassment.
+    """
+    ward = db.query(Ward).filter(Ward.id == ward_id).first()
+    if not ward:
+        raise HTTPException(status_code=404, detail="Ward not found")
+
+    inc_status = db.query(IncidentStatus).filter(IncidentStatus.ward_id == ward_id).first()
+    
+    status_out = {
+        "ward_id": ward.id,
+        "incident_active": inc_status.incident_active if inc_status else False,
+        "incident_started_at": inc_status.incident_started_at.isoformat() if (inc_status and inc_status.incident_started_at) else None,
+        "incident_description": inc_status.incident_description if inc_status else "No active incident reported for this ward.",
+        "official_who_activated": inc_status.official_who_activated.full_name if (inc_status and inc_status.official_who_activated) else None
+    }
+
+    # Fetch relief requests for this ward
+    requests_query = (
+        db.query(ReliefRequest)
+        .filter(ReliefRequest.ward_id == ward_id, ReliefRequest.is_hidden == False)
+        .order_by(desc(ReliefRequest.created_at))
+        .all()
+    )
+
+    # Check if viewer is an authorized official or verified helper
+    is_privileged = bool(current_user and current_user.role in ["official", "district_official"])
+
+    requests_out = []
+    for req in requests_query:
+        phone_val = req.requester_phone if is_privileged else mask_phone_number(req.requester_phone)
+        requests_out.append({
+            "id": req.id,
+            "ward_id": req.ward_id,
+            "requester_name": req.requester_name,
+            "requester_phone": phone_val,
+            "need_type": req.need_type,
+            "description": req.description,
+            "people_affected_count": req.people_affected_count,
+            "urgency": req.urgency,
+            "status": req.status,
+            "created_at": req.created_at.isoformat(),
+            "fulfilled_by_id": req.fulfilled_by_id,
+            "fulfilled_at": req.fulfilled_at.isoformat() if req.fulfilled_at else None,
+            "is_hidden": req.is_hidden
+        })
+
+    # Fetch relief providers covering this ward
+    providers = db.query(ReliefProvider).filter(ReliefProvider.is_hidden == False).all()
+    matching_providers = []
+    str_id = str(ward_id)
+    for p in providers:
+        covered_ids = [w.strip() for w in p.ward_ids_covered.split(",") if w.strip()]
+        if "*" in covered_ids or str_id in covered_ids:
+            matching_providers.append({
+                "id": p.id,
+                "name": p.name,
+                "type": p.type,
+                "phone": p.phone,
+                "what_they_can_offer": p.what_they_can_offer,
+                "ward_ids_covered": p.ward_ids_covered,
+                "verified": p.verified,
+                "created_at": p.created_at.isoformat(),
+                "is_hidden": p.is_hidden
+            })
+
+    return {
+        "ward_id": ward.id,
+        "ward_name": ward.name,
+        "district": ward.district,
+        "incident_status": status_out,
+        "relief_requests": requests_out,
+        "relief_providers": matching_providers
+    }
+
+@app.post("/relief-requests", response_model=ReliefRequestOut, tags=["Relief & Recovery"])
+async def create_relief_request(
+    req: ReliefRequestCreate,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Public endpoint (no auth needed): A villager or local volunteer can submit a need without an account.
+    Includes honeypot spam protection and IP rate limiting.
+    """
+    if req.honeypot_check and req.honeypot_check.strip():
+        logger.warning(f"Honeypot triggered on relief request submission from IP: {request.client.host if request.client else 'unknown'}")
+        raise HTTPException(status_code=400, detail="Invalid submission")
+
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    check_ip_rate_limit(client_ip, max_requests=5, window_seconds=600)
+
+    ward = db.query(Ward).filter(Ward.id == req.ward_id).first()
+    if not ward:
+        raise HTTPException(status_code=404, detail="Ward not found")
+
+    new_request = ReliefRequest(
+        ward_id=req.ward_id,
+        requester_name=req.requester_name.strip(),
+        requester_phone=req.requester_phone.strip(),
+        need_type=req.need_type.strip().lower(),
+        description=req.description.strip(),
+        people_affected_count=max(1, req.people_affected_count),
+        urgency=req.urgency.strip().lower(),
+        status="open",
+        created_at=datetime.utcnow()
+    )
+    db.add(new_request)
+    db.commit()
+    db.refresh(new_request)
+
+    await ws_manager.broadcast({
+        "event": "relief_request_added",
+        "ward_id": req.ward_id,
+        "ward_name": ward.name,
+        "need_type": new_request.need_type,
+        "urgency": new_request.urgency
+    })
+
+    return new_request
+
+@app.patch("/relief-requests/{request_id}", response_model=ReliefRequestOut, tags=["Relief & Recovery"])
+def update_relief_request_status(
+    request_id: int,
+    req_update: ReliefRequestUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Official or verified provider endpoint: Update status (e.g. mark 'in_progress' or 'fulfilled') or hide entry.
+    """
+    rel_req = db.query(ReliefRequest).filter(ReliefRequest.id == request_id).first()
+    if not rel_req:
+        raise HTTPException(status_code=404, detail="Relief request not found")
+
+    if req_update.status:
+        new_status = req_update.status.strip().lower()
+        if new_status not in ["open", "in_progress", "fulfilled"]:
+            raise HTTPException(status_code=400, detail="Invalid status. Must be open, in_progress, or fulfilled")
+        rel_req.status = new_status
+        if new_status == "fulfilled":
+            rel_req.fulfilled_at = datetime.utcnow()
+            if req_update.fulfilled_by_id:
+                rel_req.fulfilled_by_id = req_update.fulfilled_by_id
+
+    if req_update.fulfilled_by_id is not None:
+        rel_req.fulfilled_by_id = req_update.fulfilled_by_id
+
+    if req_update.is_hidden is not None:
+        if current_user.role not in ["official", "district_official"]:
+            raise HTTPException(status_code=403, detail="Only officials can hide fraudulent relief requests")
+        rel_req.is_hidden = req_update.is_hidden
+
+    db.commit()
+    db.refresh(rel_req)
+    return rel_req
+
+@app.post("/relief-providers", response_model=ReliefProviderOut, tags=["Relief & Recovery"])
+def register_relief_provider(
+    req: ReliefProviderCreate,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Public endpoint: Anyone can register as a potential helper (NGO, individual volunteer, business).
+    Starts as unverified (verified = False) until confirmed by an official.
+    """
+    if req.honeypot_check and req.honeypot_check.strip():
+        logger.warning(f"Honeypot triggered on relief provider registration from IP: {request.client.host if request.client else 'unknown'}")
+        raise HTTPException(status_code=400, detail="Invalid submission")
+
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    check_ip_rate_limit(client_ip, max_requests=5, window_seconds=600)
+
+    new_provider = ReliefProvider(
+        name=req.name.strip(),
+        type=req.type.strip().lower(),
+        phone=req.phone.strip(),
+        what_they_can_offer=req.what_they_can_offer.strip(),
+        ward_ids_covered=req.ward_ids_covered.strip(),
+        verified=False,
+        created_at=datetime.utcnow()
+    )
+    db.add(new_provider)
+    db.commit()
+    db.refresh(new_provider)
+    return new_provider
+
+@app.patch("/relief-providers/{provider_id}/verify", response_model=ReliefProviderOut, tags=["Relief & Recovery"])
+def verify_relief_provider(
+    provider_id: int,
+    db: Session = Depends(get_db),
+    current_official: User = Depends(require_official_role)
+):
+    """
+    Official-only endpoint: Marks a relief provider as verified.
+    """
+    provider = db.query(ReliefProvider).filter(ReliefProvider.id == provider_id).first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Relief provider not found")
+
+    provider.verified = True
+    db.commit()
+    db.refresh(provider)
+    return provider
+
+@app.get("/donation-links", response_model=List[DonationLinkOut], tags=["Relief & Recovery"])
+def list_donation_links(
+    ward_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns curated list of registered external organizations for donations.
+    Note: Platform does NOT process payments directly.
+    """
+    query = db.query(DonationLink)
+    if ward_id:
+        query = query.filter((DonationLink.ward_id == ward_id) | (DonationLink.ward_id == None))
+    return query.all()
+
