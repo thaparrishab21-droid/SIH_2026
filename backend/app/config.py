@@ -16,12 +16,12 @@ class Settings(BaseSettings):
     # Twilio WhatsApp Configuration
     TWILIO_ACCOUNT_SID: Optional[str] = None
     TWILIO_AUTH_TOKEN: Optional[str] = None
-    TWILIO_WHATSAPP_NUMBER: str = "whatsapp:+14155238886"  # Default Twilio Sandbox Number
+    TWILIO_WHATSAPP_NUMBER: str = "whatsapp:+14155238886"
     
     # Simulation / Risk Background Job Interval (seconds)
     SIMULATION_INTERVAL_SECONDS: int = 60
     
-    # CORS Origins (Explicit Localhost & Production Origins Only)
+    # CORS Origins
     CORS_ORIGINS: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",

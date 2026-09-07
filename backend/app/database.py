@@ -1,8 +1,18 @@
+import sys
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from backend.config import settings
 
-# SQLite requires check_same_thread=False for multi-threaded FastAPI execution
+file_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.abspath(os.path.join(file_dir, "..", ".."))
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+
+try:
+    from backend.app.config import settings
+except ImportError:
+    from app.config import settings
+
 connect_args = {"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}
 
 engine = create_engine(

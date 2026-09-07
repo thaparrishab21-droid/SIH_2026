@@ -4,8 +4,8 @@ Tests authentication, RBAC, safe zones, PDF report exports, risk escalation, and
 """
 
 from fastapi.testclient import TestClient
-from backend.main import app
-from backend.database import Base, engine
+from backend.app.main import app
+from backend.app.database import Base, engine
 from backend.seed_data import seed_database
 
 client = TestClient(app)

@@ -1,6 +1,6 @@
 # ⛰️ Flood-Flash: Landslide & Flash-Flood Early Warning & Post-Disaster Relief System (v2.0)
 
-**Flood-Flash** is an integrated, hyper-local disaster management platform designed for hilly terrain wards (focused on Uttarakhand river valleys like Rudraprayag, Chamoli, and Nainital). It combines **pre-disaster hazard prediction & real-time monitoring** with a dedicated **post-disaster relief & community support coordination page**.
+**Flood-Flash** is an integrated, hyper-local disaster management platform designed for hilly terrain wards (focused on Uttarakhand river valleys like Rudraprayag, Chamoli, and Nainital). It combines **pre-disaster hazard prediction & real-time monitoring** with a dedicated **post-disaster relief & community support coordination portal**.
 
 ---
 
@@ -19,7 +19,7 @@
   ├───────────────────────────────┤                                     ├───────────────────────────────┤
   │ • AWS Sensor Telemetry Stream │                                     │ • Activates on Critical Alert │
   │ • ML & Physics Risk Engine    │ ────────────── Escalation ─────────►│ • Live Request Feed & Filters │
-  │ • Interactive Risk Map        │          (or Official Declared)      │ • Public "Report Need" Form   │
+  │ • Interactive Risk Map        │          (or Official Declared)     │ • Public "Report Need" Form   │
   │ • Safe Zone GIS Routing       │                                     │ • Public "Register Helper"    │
   │ • Multi-lingual WhatsApp/SMS  │                                     │ • Phone Privacy & Anti-Spam   │
   │ • PDF Audit Report Export     │                                     │ • External Donation Links     │
@@ -30,14 +30,19 @@ The system operates across two clear phases:
 
 1. **Pre-Disaster Phase (Prediction & Alerting Dashboard)**:
    - Evaluates 72h monsoonal precipitation, 1h torrential rainfall rate, soil pore saturation, and slope displacement angle.
-   - Computes risk levels (`Safe`, `Watch`, `Warning`, `Critical`) using physics thresholds & XGBoost ML model.
-   - Automatically dispatches multi-channel alerts (WhatsApp + SMS fallback) in Hindi (`hi`), Garhwali (`gar`), and English (`en`).
+   - Computes risk levels (`Safe`, `Watch`, `Warning`, `Critical`) using physics thresholds & XGBoost ML model ($F_1 \approx 0.94$, $ROC\text{-}AUC \approx 0.98$).
+   - Automatically dispatches multi-channel emergency alerts (WhatsApp + SMS fallback) in Hindi (`hi`), Garhwali (`gar`), and English (`en`).
    - Calculates nearest evacuation safe zones via Haversine GIS distance logic.
+   - Offers single-click PDF Monsoonal Risk Audit Report exports per ward.
 
 2. **Post-Disaster Phase (Relief & Recovery Portal)**:
    - **Activates per-ward** when a `Critical` risk escalation occurs or when a District Official manually declares an active incident.
-   - **Live Feed of Needs**: Displays real-time relief requests (`food`, `water`, `medical`, `shelter`, `clothing`, `rescue`), filterable by urgency and type.
-   - **Public Access without Login**: Villagers and volunteers during active events can report needs and register helper services without needing an account.
+   - **4 Core Portal Views**:
+     1. 🚨 **Live Alerts & Safety**: Real-time risk status, simulation controls, interactive GIS map, and telemetry details.
+     2. 🛡️ **Verified Shelters**: Dedicated safe zone registry, evacuation routes, capacity stats, and available supplies.
+     3. 🆘 **Community Relief & Charity**: Public disaster help request submission, live relief request feed, helper registration, official verification badges, and third-party SDRF/PMNRF donation links.
+     4. 📞 **Emergency Numbers**: One-touch access to disaster helplines (Dial 1077, NDRF, SDRF, Police, Medical, DEOC).
+   - **Public Access without Login**: Citizens and volunteers during active events can submit relief requests and register helper services without friction.
    - **Privacy & Safety Controls**: Requester phone numbers are masked publicly (`+91 98765 *****`) to prevent harassment, unmasked only for authenticated officials and verified helpers. Includes anti-spam honeypot inputs and IP rate limiting.
    - **Official Verification**: Officials verify volunteer/NGO helpers (`SDMA VERIFIED`) and update request fulfillment statuses.
    - **Curated Third-Party Fund Links**: Direct links to registered government funds (Uttarakhand SDRF & PMNRF) with an explicit notice that this platform does not collect or hold money directly.
@@ -48,16 +53,17 @@ The system operates across two clear phases:
 
 ### Backend
 - **Framework**: FastAPI (Python 3.10+) with async WebSockets (`/ws`).
-- **Database & ORM**: SQLite / SQLAlchemy ORM (compatible with PostgreSQL).
-- **Machine Learning**: XGBoost ($F_1 \approx 0.94$, $ROC\text{-}AUC \approx 0.98$).
-- **Authentication**: JWT Bearer Tokens with Passlib (`pbkdf2_sha256`) password hashing.
-- **Alert Dissemination**: Multi-lingual message engine + Twilio WhatsApp & SMS fallback.
+- **Architecture**: Clean modular architecture (`app/routers/`, `app/services/`, `app/models/`, `app/schemas/`, `app/ml/`).
+- **Database & ORM**: SQLite / SQLAlchemy ORM (configured with WAL mode for concurrency, PostgreSQL ready).
+- **Machine Learning**: XGBoost classifier trained on historical monsoonal landslide/flood features.
+- **Authentication**: Role-Based Access Control (RBAC) with JWT Bearer Tokens and Passlib (`pbkdf2_sha256`) password hashing.
+- **Alert Dissemination**: Multi-lingual message engine + Twilio WhatsApp & SMS fallback dispatch.
 - **Reporting**: ReportLab PDF document generator.
 
 ### Frontend
 - **Framework**: React 18 + Vite.
-- **Styling**: Vanilla CSS + Tailwind CSS tokens (Dark Slate UI palette `#0b1120`).
-- **Icons**: Lucide React icons.
+- **Styling**: Vanilla CSS + custom design system (Dark Slate UI palette `#0b1120`).
+- **Icons**: Lucide React icon suite.
 - **Real-Time Data**: WebSocket streaming client (`api.js`).
 
 ---
@@ -67,40 +73,45 @@ The system operates across two clear phases:
 ```
 SIH_2026/
 ├── backend/
-│   ├── auth.py                 # JWT token creation, verification & RBAC dependencies
-│   ├── config.py               # Application settings & environment configuration
-│   ├── database.py             # SQLAlchemy database session & engine setup
-│   ├── main.py                 # FastAPI application routes, WebSockets & auto-alerts
-│   ├── ml_risk_engine.py       # XGBoost ML model loader & fallback physics engine
-│   ├── models.py               # Database schemas (Ward, SensorReading, Alert, ReliefRequest, etc.)
-│   ├── pdf_service.py          # PDF monsoonal audit report generator
+│   ├── app/
+│   │   ├── ml/                 # Machine learning models & saved weight artifacts
+│   │   ├── models/             # SQLAlchemy ORM database models
+│   │   ├── routers/            # FastAPI modular routers (auth, wards, alerts, shelters, relief, telemetry)
+│   │   ├── schemas/            # Pydantic v2 request & response schemas
+│   │   ├── services/           # Business logic services (auth, ML, risk engine, PDF, safe zone GIS, WhatsApp)
+│   │   ├── config.py           # Application settings & environment configuration
+│   │   ├── database.py         # SQLAlchemy engine & session setup
+│   │   ├── main.py             # FastAPI core application instance & WebSocket endpoints
+│   │   └── __init__.py
+│   ├── .env.example            # Environment variables template
+│   ├── flood_flash.db          # SQLite database storage
+│   ├── main.py                 # Backend entry point forwarder
+│   ├── MODEL_CARD.md           # Machine Learning model card & metrics
+│   ├── README.md               # Backend documentation
 │   ├── requirements.txt        # Python backend dependencies
-│   ├── risk_engine.py          # Integrated physics & ML risk calculation logic
-│   ├── safe_zone_service.py    # Safe zone GIS Haversine routing engine
-│   ├── schemas.py              # Pydantic v2 request/response schemas
-│   ├── seed_data.py            # Database seeder (18 wards, active incidents, relief requests)
-│   ├── test_api.py             # Automated API & RBAC test suite
-│   └── whatsapp_service.py     # Multi-lingual WhatsApp & SMS fallback engine
+│   ├── seed_data.py            # Database seeder (18 wards, safe zones, initial readings, accounts)
+│   └── test_api.py             # Automated API, RBAC, and relief endpoint test suite
 │
 └── frontend/
     ├── index.html              # HTML entry point
     ├── package.json            # Node.js dependencies
     ├── vite.config.js          # Vite build configuration
     └── src/
-        ├── api.js              # Central API client & WebSocket listener
-        ├── App.jsx             # Main application layout, routing & tab state
-        ├── index.css           # Global design system styles
+        ├── api.js              # Centralized API client & WebSocket listener
+        ├── App.jsx             # Main layout, tab navigation & global modal state
+        ├── index.css           # Global design system & theme variables
         └── components/
-            ├── ReliefRecoveryView.jsx  # NEW: Post-disaster relief portal view
-            ├── Header.jsx              # App header with main navigation tabs
-            ├── MapView.jsx             # Interactive GIS risk map
-            ├── SummaryStrip.jsx        # Telemetry summary statistics strip
-            ├── WardDetailPanel.jsx     # Slide-in ward telemetry detail panel
-            ├── DisseminationLog.jsx    # Emergency alert dispatch log
-            ├── SystemHealth.jsx        # Data mesh & system health monitor
-            ├── TriggerAlertModal.jsx   # Official emergency alert modal
-            ├── LoginModal.jsx          # Control room login modal
-            └── KeyboardShortcutsModal.jsx # Control room shortcut keys modal
+            ├── Header.jsx                      # App navigation bar with tab selectors & identity modal button
+            ├── LiveAlertsSafetyView.jsx        # Pre-disaster risk overview, alerts banner, map toggle & telemetry
+            ├── VerifiedSheltersView.jsx        # Dedicated safe shelters tab with capacity stats & map view
+            ├── ReliefCharityView.jsx           # Post-disaster relief portal with request feed & donation links
+            ├── EmergencyNumbersView.jsx        # Emergency helplines tab (Dial 1077, NDRF, SDRF, DEOC)
+            ├── IdentityAuthModal.jsx           # Citizen portal login (Official) and registration modal
+            ├── RequestDisasterHelpModal.jsx     # Relief request submission modal (food, medical, rescue, etc.)
+            ├── MapView.jsx                     # Interactive Leaflet / GIS risk map with safe zone markers
+            ├── TriggerAlertModal.jsx           # Official emergency alert broadcast modal
+            ├── KeyboardShortcutsModal.jsx     # Control room shortcut keys modal
+            └── DisseminationLog.jsx            # Emergency alert dispatch log component
 ```
 
 ---
@@ -124,24 +135,30 @@ The system implements Role-Based Access Control (RBAC):
 
 ### 2. Backend Setup
 ```bash
-# Navigate to project root
-cd SIH_2026
+# Navigate to backend directory
+cd backend
 
 # Install backend dependencies
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 
 # Seed database with initial wards, active incidents, relief requests, and safe zones
-python -m backend.seed_data
+python seed_data.py
 
 # Start FastAPI server
-uvicorn backend.main:app --reload --port 8000
+python -m uvicorn app.main:app --reload --port 8000
 ```
+*Alternatively, from the project root directory:*
+```bash
+python -m backend.seed_data
+python -m uvicorn backend.main:app --reload --port 8000
+```
+
 Backend API interactive documentation will be live at: **http://localhost:8000/docs**
 
 ### 3. Frontend Setup
 Open a new terminal window:
 ```bash
-cd SIH_2026/frontend
+cd frontend
 
 # Install dependencies
 npm install
@@ -173,7 +190,7 @@ Frontend application will be live at: **http://localhost:5173**
 - `POST /alerts/trigger`: Manually dispatch emergency alert (Official only).
 - `WS /ws`: Real-time WebSocket connection for live telemetry updates.
 
-### 🆘 Post-Disaster Relief & Recovery (NEW)
+### 🆘 Post-Disaster Relief & Recovery
 - `POST /wards/{id}/activate-incident`: Activate active disaster mode for a ward (Official only).
 - `POST /wards/{id}/deactivate-incident`: Mark recovery complete and deactivate incident (Official only).
 - `GET /wards/{id}/relief-status`: Get active incident banner info, relief requests, and relief helpers (requester phone numbers are masked for public users).
@@ -182,6 +199,11 @@ Frontend application will be live at: **http://localhost:5173**
 - `POST /relief-providers`: Public helper/volunteer registration (starts unverified).
 - `PATCH /relief-providers/{id}/verify`: Verify a registered helper (Official only).
 - `GET /donation-links`: Curated external donation link directory for third-party funds.
+
+### 🏥 System & Diagnostics
+- `GET /health`: Basic operational status.
+- `GET /system-health`: Detailed data mesh & system health metrics.
+- `GET /risk-thresholds`: Risk level threshold score configurations.
 
 ---
 

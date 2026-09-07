@@ -1,15 +1,3 @@
-"""
-ML Inference Risk Engine Module for Flood-Flash Early Warning System.
-
-This module provides ML model inference matching the exact interface of risk_engine.py:
-`predict_risk_ml(sensor_reading, ward) -> dict`
-
-It loads the trained XGBoost model from backend/models/landslide_xgb_model.joblib,
-extracts features, predicts landslide probability, maps the continuous score (0-100)
-to the 4-tier risk level ('Safe', 'Watch', 'Warning', 'Critical'), and generates
-human-readable contributing factors based on feature weighting.
-"""
-
 import os
 import logging
 import joblib
@@ -19,43 +7,35 @@ from typing import Dict, Any, List
 logger = logging.getLogger("ml_risk_engine")
 logger.setLevel(logging.INFO)
 
-# Global cache for loaded model artifact
 _MODEL_ARTIFACT = None
 
 def get_model_artifact():
     global _MODEL_ARTIFACT
     if _MODEL_ARTIFACT is None:
-        models_dir = os.path.join(os.path.dirname(__file__), "models")
-        model_path = os.path.join(models_dir, "landslide_xgb_model.joblib")
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(
-                f"Trained model artifact not found at {model_path}. Please run 'python -m backend.train_model' first."
-            )
+        # Look in backend/app/ml/ or backend/models/
+        possible_paths = [
+            os.path.join(os.path.dirname(__file__), "..", "ml", "landslide_xgb_model.joblib"),
+            os.path.join(os.path.dirname(__file__), "..", "..", "models", "landslide_xgb_model.joblib"),
+        ]
+        model_path = None
+        for p in possible_paths:
+            if os.path.exists(p):
+                model_path = p
+                break
+
+        if not model_path:
+            raise FileNotFoundError("Trained ML model artifact not found.")
+
         _MODEL_ARTIFACT = joblib.load(model_path)
         logger.info("Successfully loaded ML model artifact into memory.")
     return _MODEL_ARTIFACT
 
 def predict_risk_ml(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
-    """
-    ML-based risk assessment evaluation for a given ward and sensor reading.
-
-    Args:
-        sensor_reading: Object or dict containing rainfall_1h_mm, rainfall_24h_mm,
-                        rainfall_72h_mm, soil_moisture_pct, slope_angle_deg.
-        ward: Object or dict containing ward details (historical incidents, slope, etc.).
-
-    Returns:
-        Dict containing:
-            - risk_level: str ('Safe', 'Watch', 'Warning', 'Critical')
-            - risk_score: float (0.0 - 100.0)
-            - contributing_factors: List[str]
-    """
     artifact = get_model_artifact()
     model = artifact["model"]
     feature_names = artifact["feature_names"]
     feat_importances = artifact.get("feature_importances", {})
 
-    # Extract Feature Values
     r1 = float(getattr(sensor_reading, "rainfall_1h_mm", 0.0))
     r24 = float(getattr(sensor_reading, "rainfall_24h_mm", 0.0))
     r72 = float(getattr(sensor_reading, "rainfall_72h_mm", 0.0))
@@ -67,7 +47,6 @@ def predict_risk_ml(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
     if slope == 0.0:
         slope = 30.0
 
-    # Historical incidents count for ward
     incidents_count = 2
     if hasattr(ward, "incidents"):
         incidents_count = len(getattr(ward, "incidents", []))
@@ -76,7 +55,6 @@ def predict_risk_ml(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
 
     days_dry = 0 if r1 > 2.0 else (1 if r24 > 5.0 else 3)
 
-    # Build DataFrame matching training feature columns
     input_df = pd.DataFrame([{
         "rainfall_1h_mm": r1,
         "rainfall_24h_mm": r24,
@@ -87,11 +65,9 @@ def predict_risk_ml(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
         "days_since_last_rain": days_dry
     }])[feature_names]
 
-    # Predict Landslide Probability
     prob = float(model.predict_proba(input_df)[0, 1])
     risk_score = round(prob * 100.0, 1)
 
-    # 4-Tier Risk Classification based on Model Validation Thresholds
     if prob >= 0.75:
         risk_level = "Critical"
     elif prob >= 0.50:
@@ -101,10 +77,7 @@ def predict_risk_ml(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
     else:
         risk_level = "Safe"
 
-    # Generate Human-Readable Contributing Factors based on Feature Importances & Thresholds
     factors: List[str] = []
-
-    # Sort input features by importance weight
     val_map = {
         "rainfall_72h_mm": (r72, f"72h rainfall ({r72:.1f}mm)"),
         "soil_moisture_pct": (sm, f"Soil moisture saturation ({sm:.1f}%)"),
@@ -115,14 +88,12 @@ def predict_risk_ml(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
         "days_since_last_rain": (days_dry, f"Recent dry window ({days_dry} days)")
     }
 
-    # Add top 3 contributing factors
     sorted_features = sorted(feat_importances.items(), key=lambda x: x[1], reverse=True)
     for feat_name, imp_val in sorted_features[:3]:
         val, desc = val_map.get(feat_name, (0, feat_name))
         weight_pct = imp_val * 100.0
         factors.append(f"ML Model Feature Weight: {desc} contributes {weight_pct:.1f}% to hazard scoring")
 
-    # Add specific physical alert threshold notes if elevated
     if r72 > 150:
         factors.append(f"72h cumulative rainfall ({r72:.1f}mm) exceeds high-hazard baseline")
     if sm > 65:

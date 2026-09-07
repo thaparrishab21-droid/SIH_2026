@@ -1,7 +1,10 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from backend.database import Base
+try:
+    from backend.app.database import Base
+except ImportError:
+    from app.database import Base
 
 class User(Base):
     __tablename__ = "users"
@@ -44,7 +47,7 @@ class SafeZone(Base):
     capacity = Column(Integer, nullable=False, default=1000)
     district = Column(String, nullable=False, index=True)
     safe_zone_type = Column(String, nullable=False, default="Community Shelter")
-    associated_ward_ids = Column(String, nullable=True)  # Comma-separated ward IDs e.g. "1,2,3"
+    associated_ward_ids = Column(String, nullable=True)
 
 class SensorReading(Base):
     __tablename__ = "sensor_readings"
@@ -68,7 +71,7 @@ class RiskAssessment(Base):
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)
     risk_level = Column(String, nullable=False)  # Safe, Watch, Warning, Critical
     risk_score = Column(Float, nullable=False)   # 0.0 - 100.0
-    contributing_factors = Column(Text, nullable=False)  # JSON or newline-separated text list
+    contributing_factors = Column(Text, nullable=False)
 
     ward = relationship("Ward", back_populates="risk_assessments")
 
@@ -77,9 +80,9 @@ class HistoricalIncident(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     ward_id = Column(Integer, ForeignKey("wards.id"), nullable=False, index=True)
-    date = Column(String, nullable=False)  # YYYY-MM-DD format or ISO string
-    incident_type = Column(String, nullable=False)  # landslide, flash_flood
-    severity = Column(String, nullable=False)  # Low, Medium, High, Severe
+    date = Column(String, nullable=False)
+    incident_type = Column(String, nullable=False)
+    severity = Column(String, nullable=False)
     casualties = Column(Integer, nullable=False, default=0)
     description = Column(Text, nullable=False)
 
@@ -92,11 +95,11 @@ class Alert(Base):
     ward_id = Column(Integer, ForeignKey("wards.id"), nullable=False, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)
     risk_level = Column(String, nullable=False)
-    channel = Column(String, nullable=False, default="whatsapp")  # whatsapp, sms, whatsapp+sms
+    channel = Column(String, nullable=False, default="whatsapp")
     message_text = Column(Text, nullable=False)
     recipient_count = Column(Integer, nullable=False, default=0)
-    delivery_status = Column(Text, nullable=False)  # JSON log of recipient statuses & fallback channels
-    triggered_by = Column(String, nullable=False, default="auto")  # auto, manual (Official Name)
+    delivery_status = Column(Text, nullable=False)
+    triggered_by = Column(String, nullable=False, default="auto")
 
     ward = relationship("Ward", back_populates="alerts")
 
@@ -106,10 +109,10 @@ class Subscriber(Base):
     id = Column(Integer, primary_key=True, index=True)
     ward_id = Column(Integer, ForeignKey("wards.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
-    phone_number = Column(String, nullable=False)  # e.g., +919876543210
-    role = Column(String, nullable=False)  # official, village_head, resident
+    phone_number = Column(String, nullable=False)
+    role = Column(String, nullable=False)
     whatsapp_opted_in = Column(Boolean, nullable=False, default=True)
-    preferred_language = Column(String, nullable=False, default="en")  # en (English), hi (Hindi), gar (Garhwali)
+    preferred_language = Column(String, nullable=False, default="en")
 
     ward = relationship("Ward", back_populates="subscribers")
 
@@ -131,10 +134,10 @@ class ReliefProvider(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    type = Column(String, nullable=False)  # individual, ngo, govt_agency, business
+    type = Column(String, nullable=False)
     phone = Column(String, nullable=False)
     what_they_can_offer = Column(Text, nullable=False)
-    ward_ids_covered = Column(String, nullable=False)  # comma-separated ward IDs e.g. "1,2,3"
+    ward_ids_covered = Column(String, nullable=False)
     verified = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     is_hidden = Column(Boolean, nullable=False, default=False)
@@ -148,11 +151,11 @@ class ReliefRequest(Base):
     ward_id = Column(Integer, ForeignKey("wards.id"), nullable=False, index=True)
     requester_name = Column(String, nullable=False)
     requester_phone = Column(String, nullable=False)
-    need_type = Column(String, nullable=False)  # shelter, food, medical, water, clothing, rescue, other
+    need_type = Column(String, nullable=False)
     description = Column(Text, nullable=False)
     people_affected_count = Column(Integer, nullable=False, default=1)
-    urgency = Column(String, nullable=False, default="medium")  # low, medium, high, critical
-    status = Column(String, nullable=False, default="open")  # open, in_progress, fulfilled
+    urgency = Column(String, nullable=False, default="medium")
+    status = Column(String, nullable=False, default="open")
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     fulfilled_by_id = Column(Integer, ForeignKey("relief_providers.id"), nullable=True)
     fulfilled_at = Column(DateTime, nullable=True)
@@ -167,9 +170,8 @@ class DonationLink(Base):
     id = Column(Integer, primary_key=True, index=True)
     ward_id = Column(Integer, ForeignKey("wards.id"), nullable=True, index=True)
     organization_name = Column(String, nullable=False)
-    organization_type = Column(String, nullable=False)  # e.g., State Disaster Response Fund, Verified NGO
+    organization_type = Column(String, nullable=False)
     donation_url = Column(String, nullable=False)
     description = Column(Text, nullable=False)
 
     ward = relationship("Ward", back_populates="donation_links")
-

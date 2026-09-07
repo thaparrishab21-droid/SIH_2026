@@ -1,23 +1,10 @@
-"""
-Risk Engine Router for Flood-Flash Early Warning System.
-
-This module acts as the unified router for risk evaluation.
-Depending on the `RISK_ENGINE_MODE` setting ('ml' or 'rule_based'), it delegates to:
-1. `ml_risk_engine.py` (XGBoost Gradient Boosted Classifier)
-2. Rule-based threshold engine (Fallback & Benchmark)
-
-If ML inference fails (e.g., missing model weights file), it gracefully falls back
-to rule-based logic with a logged operational warning.
-"""
-
 import logging
 from typing import Dict, Any, List
-from backend.config import settings
+from backend.app.config import settings
 
 logger = logging.getLogger("risk_engine")
 
 def calculate_risk_rule_based(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
-    """Rule-based risk assessment logic."""
     r1 = getattr(sensor_reading, "rainfall_1h_mm", 0.0)
     r24 = getattr(sensor_reading, "rainfall_24h_mm", 0.0)
     r72 = getattr(sensor_reading, "rainfall_72h_mm", 0.0)
@@ -29,7 +16,6 @@ def calculate_risk_rule_based(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
 
     factors: List[str] = []
 
-    # 1. Base Threshold Determination
     if r72 > 200 and sm > 80:
         base_level = "Critical"
         factors.append(f"72h cumulative rainfall ({r72:.1f}mm) exceeds critical threshold (>200mm)")
@@ -48,13 +34,11 @@ def calculate_risk_rule_based(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
         base_level = "Safe"
         factors.append("Rainfall and soil moisture are within normal safety limits")
 
-    # 2. Intense Short-Burst Rainfall Check (Flash Flood trigger)
     if r1 >= 35.0:
         factors.append(f"High-intensity 1h rainfall rate ({r1:.1f}mm/h) increases immediate flash flood risk")
         if base_level in ["Safe", "Watch"]:
             base_level = "Warning"
 
-    # 3. Slope Angle Multiplier
     if slope >= 38.0:
         slope_multiplier = 1.35
         factors.append(f"Steep slope angle ({slope:.1f}°) significantly escalates landslide instability (1.35x multiplier)")
@@ -89,15 +73,11 @@ def calculate_risk_rule_based(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
     }
 
 def calculate_risk(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
-    """
-    Main risk assessment entry point. Routes to ML model or Rule-Based engine
-    based on settings.RISK_ENGINE_MODE ('ml' vs 'rule_based').
-    """
     mode = getattr(settings, "RISK_ENGINE_MODE", "ml").lower()
 
     if mode == "ml":
         try:
-            from backend.ml_risk_engine import predict_risk_ml
+            from backend.app.services.ml_risk_engine import predict_risk_ml
             return predict_risk_ml(sensor_reading, ward)
         except Exception as e:
             logger.warning(f"ML risk engine execution failed or model file not found ({e}). Falling back to rule-based engine.")

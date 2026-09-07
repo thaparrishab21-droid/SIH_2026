@@ -100,7 +100,7 @@ class SubscriberBase(BaseModel):
     phone_number: str
     role: str
     whatsapp_opted_in: bool = True
-    preferred_language: str = "en"  # en, hi, gar
+    preferred_language: str = "en"
 
 class SubscriberOut(SubscriberBase):
     id: int
@@ -185,14 +185,14 @@ class ReliefRequestCreate(BaseModel):
     ward_id: int
     requester_name: str
     requester_phone: str
-    need_type: str  # shelter, food, medical, water, clothing, rescue, other
+    need_type: str
     description: str
     people_affected_count: int = Field(default=1, ge=1)
-    urgency: str = Field(default="medium")  # low, medium, high, critical
-    honeypot_check: Optional[str] = None  # Anti-spam field, must be empty
+    urgency: str = Field(default="medium")
+    honeypot_check: Optional[str] = None
 
 class ReliefRequestUpdate(BaseModel):
-    status: Optional[str] = None  # open, in_progress, fulfilled
+    status: Optional[str] = None
     fulfilled_by_id: Optional[int] = None
     is_hidden: Optional[bool] = None
 
@@ -200,7 +200,7 @@ class ReliefRequestOut(BaseModel):
     id: int
     ward_id: int
     requester_name: str
-    requester_phone: str  # May be obfuscated depending on role
+    requester_phone: str
     need_type: str
     description: str
     people_affected_count: int
@@ -216,11 +216,11 @@ class ReliefRequestOut(BaseModel):
 
 class ReliefProviderCreate(BaseModel):
     name: str
-    type: str  # individual, ngo, govt_agency, business
+    type: str
     phone: str
     what_they_can_offer: str
     ward_ids_covered: str
-    honeypot_check: Optional[str] = None  # Anti-spam field, must be empty
+    honeypot_check: Optional[str] = None
 
 class ReliefProviderOut(BaseModel):
     id: int
@@ -250,8 +250,10 @@ class DonationLinkOut(BaseModel):
 class WardReliefStatusOut(BaseModel):
     ward_id: int
     ward_name: str
-    district: str
-    incident_status: IncidentStatusOut
-    relief_requests: List[ReliefRequestOut]
-    relief_providers: List[ReliefProviderOut]
-
+    incident_active: bool
+    open_requests_count: int
+    critical_urgency_count: int
+    verified_providers_count: int
+    requests: List[ReliefRequestOut]
+    providers: List[ReliefProviderOut]
+    donation_links: List[DonationLinkOut]

@@ -7,13 +7,13 @@ and multi-lingual subscribers with WhatsApp / SMS opt-in preferences.
 
 from datetime import datetime, timedelta
 import random
-from backend.database import SessionLocal, engine, Base
-from backend.models import (
+from backend.app.database import SessionLocal, engine, Base
+from backend.app.models.db_models import (
     Ward, SensorReading, RiskAssessment, HistoricalIncident, Subscriber, User, SafeZone,
     IncidentStatus, ReliefRequest, ReliefProvider, DonationLink
 )
-from backend.risk_engine import calculate_risk
-from backend.auth import hash_password
+from backend.app.services.risk_engine import calculate_risk
+from backend.app.services.auth_service import hash_password
 
 
 def seed_database():

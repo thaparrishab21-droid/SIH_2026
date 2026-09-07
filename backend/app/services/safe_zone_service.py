@@ -1,45 +1,31 @@
 import math
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
-from backend.models import SafeZone
+from backend.app.models.db_models import SafeZone
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Calculates straight-line distance in kilometers between two lat/lon points."""
-    R = 6371.0  # Earth radius in km
-
+    R = 6371.0
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
-
     a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-    distance = R * c
-    return round(distance, 1)
+    return round(R * c, 1)
 
 def calculate_cardinal_direction(lat1: float, lon1: float, lat2: float, lon2: float) -> str:
-    """Calculates cardinal direction (N, NE, E, SE, S, SW, W, NW) from point 1 to point 2."""
     dlon = math.radians(lon2 - lon1)
     lat1_rad = math.radians(lat1)
     lat2_rad = math.radians(lat2)
-
     y = math.sin(dlon) * math.cos(lat2_rad)
     x = math.cos(lat1_rad) * math.sin(lat2_rad) - math.sin(lat1_rad) * math.cos(lat2_rad) * math.cos(dlon)
-
     bearing = math.degrees(math.atan2(y, x))
     bearing = (bearing + 360) % 360
-
     directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
     idx = int((bearing + 22.5) / 45) % 8
     return directions[idx]
 
 def get_nearest_safe_zone(ward_lat: float, ward_lng: float, db: Session, district: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Finds the geographically nearest safe zone to a given ward using Haversine distance.
-    Returns safe zone details along with distance_km and direction.
-    """
     query = db.query(SafeZone)
     if district:
-        # Prefer safe zones in the same district if available
         district_query = db.query(SafeZone).filter(SafeZone.district.ilike(f"%{district}%")).all()
         safe_zones = district_query if district_query else query.all()
     else:
