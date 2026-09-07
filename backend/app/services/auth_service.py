@@ -16,7 +16,7 @@ logger = logging.getLogger("auth")
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
-JWT_SECRET_KEY = getattr(settings, "JWT_SECRET_KEY", "flood_flash_secret_key_2026_sdma_uttarakhand")
+JWT_SECRET_KEY = settings.JWT_SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 

@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
     
+    # JWT Authentication (Required from environment, no default fallback)
+    JWT_SECRET_KEY: str
+    
     # Risk Engine Mode: 'ml' or 'rule_based'
     RISK_ENGINE_MODE: str = "ml"
     
@@ -31,7 +34,7 @@ class Settings(BaseSettings):
     ]
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "backend/.env"),
         env_file_encoding="utf-8",
         extra="ignore"
     )
