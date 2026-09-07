@@ -1,17 +1,19 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 @layer base {
   :root {
-    --bg-slate: #0b1120;
-    --panel-slate: #161f33;
-    --border-slate: #26354f;
-    --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
+    --bg-main: #f4f6fb;
+    --card-bg: #ffffff;
+    --border-light: #e2e8f0;
+    --text-dark: #0f172a;
+    --text-muted: #64748b;
+    --primary-black: #09090b;
   }
 
   body {
-    background-color: #0b1120;
-    color: #f8fafc;
+    background-color: #f4f6fb;
+    color: #0f172a;
     font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     margin: 0;
     padding: 0;
@@ -19,169 +21,70 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Force tabular numbers for numeric alignment in telemetry */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
 }
 
-/* Operational pulse animation for Critical severity markers */
-@keyframes critical-pulse {
-  0% {
-    r: 12px;
-    stroke-opacity: 1;
-    stroke-width: 2px;
-  }
-  50% {
-    r: 22px;
-    stroke-opacity: 0.4;
-    stroke-width: 4px;
-  }
-  100% {
-    r: 12px;
-    stroke-opacity: 1;
-    stroke-width: 2px;
-  }
-}
-
-.animate-critical-ring {
-  animation: critical-pulse 2s infinite ease-in-out;
-}
-
-/* Radar scan sweep animation */
-@keyframes radar-scan {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.animate-radar-sweep {
-  animation: radar-scan 6s linear infinite;
-  transform-origin: center;
-}
-
-/* Subtly animated river flow lines */
-@keyframes dash-flow {
-  to {
-    stroke-dashoffset: -40;
-  }
-}
-
-.animate-river-flow {
-  stroke-dasharray: 8 6;
-  animation: dash-flow 3s linear infinite;
-}
-
-/* Custom Crisp Dark Scrollbar */
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #cbd5e1;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #94a3b8;
 }
 
-/* Custom Leaflet Ward & Safe Zone Marker Styles */
-.custom-ward-marker {
-  display: flex;
-  align-items: center;
-  position: relative;
-  cursor: pointer;
+/* Pulse animation for active emergency alerts */
+@keyframes emergency-pulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
-.custom-ward-marker .marker-dot {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
-  flex-shrink: 0;
-  transition: transform 0.2s ease-in-out;
+.animate-pulse-fast {
+  animation: emergency-pulse 1.5s infinite ease-in-out;
 }
 
-.custom-ward-marker:hover .marker-dot {
-  transform: scale(1.35);
+/* Radar scan effect for GIS Map */
+@keyframes radar-scan {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
-.custom-ward-marker .marker-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  margin-left: 6px;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-  pointer-events: auto;
+.animate-radar {
+  animation: radar-scan 8s linear infinite;
+  transform-origin: center;
 }
 
-.custom-ward-marker.is-critical .marker-dot::before {
-  content: '';
-  position: absolute;
-  top: -8px;
-  left: -8px;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 2px solid #ef4444;
-  animation: ping-ring 1.8s infinite ease-in-out;
-  pointer-events: none;
+/* Custom Leaflet Map styling for light theme */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  border-radius: 0.5rem;
+  background-color: #e2e8f0;
+  z-index: 10;
 }
 
-@keyframes ping-ring {
-  0% {
-    transform: scale(0.5);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(2.2);
-    opacity: 0;
-  }
+.leaflet-popup-content-wrapper {
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-family: inherit;
+  padding: 4px;
 }
 
-.custom-safezone-marker {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
+.leaflet-popup-tip {
+  background: #ffffff;
 }
-
-.custom-safezone-marker .sz-icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: #064e3b;
-  border: 2px solid #10b981;
-  color: #34d399;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
-}
-
-.custom-safezone-marker .sz-tag {
-  background: #022c22;
-  border: 1px solid #059669;
-  color: #a7f3d0;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  margin-left: 4px;
-  white-space: nowrap;
-}
-
