@@ -15,8 +15,10 @@ from fastapi.middleware.cors import CORSMiddleware
 try:
     from backend.app.config import settings
     from backend.app.database import engine, Base, SessionLocal, get_db
-    from backend.app.schemas.api_schemas import ReliefRequestCreate, ReliefProviderCreate
+    from backend.app.schemas.api_schemas import ReliefRequestCreate, ReliefProviderCreate, LocationRiskInput, LocationRiskOut
     from backend.app.services.auth_service import get_current_user_optional, require_official_role
+    from backend.app.services.location_risk_service import evaluate_location_risk
+
     from backend.app.routers import (
         auth_router,
         wards_router,
@@ -137,6 +139,11 @@ def root_create_relief_provider(payload: ReliefProviderCreate, db=Depends(get_db
 @app.patch("/relief-providers/{provider_id}/verify")
 def root_verify_relief_provider(provider_id: int, db=Depends(get_db), current_user=Depends(require_official_role)):
     return verify_relief_provider(provider_id=provider_id, db=db, current_user=current_user)
+
+@app.post("/location-risk", response_model=LocationRiskOut, tags=["Location Risk"])
+def root_check_location_risk(payload: LocationRiskInput, db=Depends(get_db)):
+    return evaluate_location_risk(payload, db)
+
 
 if __name__ == "__main__":
     import uvicorn

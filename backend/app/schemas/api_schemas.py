@@ -260,3 +260,24 @@ class WardReliefStatusOut(BaseModel):
     requests: List[ReliefRequestOut]
     providers: List[ReliefProviderOut]
     donation_links: List[DonationLinkOut]
+
+# --- Location Risk Check Schemas ---
+class LocationRiskInput(BaseModel):
+    address: Optional[str] = Field(default=None, description="Free-text address or landmark name")
+    latitude: Optional[float] = Field(default=None, ge=-90.0, le=90.0, description="Latitude coordinate")
+    longitude: Optional[float] = Field(default=None, ge=-180.0, le=180.0, description="Longitude coordinate")
+
+class LocationRiskOut(BaseModel):
+    latitude: float
+    longitude: float
+    location_name: str
+    danger_factor: float
+    safety_factor: float
+    factor_of_safety: Optional[float] = None
+    risk_level: str
+    nearest_ward_name: str
+    distance_to_nearest_ward_km: float
+    contributing_factors: List[str]
+    is_estimated: bool
+    nearest_safe_zone: Optional[dict] = None
+

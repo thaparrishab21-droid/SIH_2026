@@ -415,3 +415,16 @@ export async function getDonationLinks(wardId) {
   return await apiFetch(`/donation-links${query}`);
 }
 
+// --- Check This Location API ---
+export async function checkLocationRisk(payload) {
+  return await apiFetch('/location-risk', {
+    method: 'POST',
+    body: JSON.stringify({
+      address: payload.address || null,
+      latitude: payload.latitude !== undefined && payload.latitude !== null ? parseFloat(payload.latitude) : null,
+      longitude: payload.longitude !== undefined && payload.longitude !== null ? parseFloat(payload.longitude) : null
+    })
+  });
+}
+
+

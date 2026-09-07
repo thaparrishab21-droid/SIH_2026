@@ -219,6 +219,48 @@ def run_tests():
     assert res_deact.json()["incident_active"] is False
     print("[OK] Official Activate & Deactivate Incident Endpoints Passed.")
 
+    print("\n--- 10. Testing POST /location-risk ('Check This Location' Feature) ---")
+    # Test 10A: Near an existing ward (Kedarnath Town Ward ~30.7346, 79.0669) -> Expect is_estimated == False
+    res_near = client.post("/location-risk", json={
+        "latitude": 30.7346,
+        "longitude": 79.0669
+    })
+    assert res_near.status_code == 200, f"Location risk near ward failed: {res_near.text}"
+    near_data = res_near.json()
+    assert near_data["is_estimated"] is False, "Location within 5km of seeded ward MUST have is_estimated == False"
+    assert near_data["nearest_ward_name"] == "Kedarnath Town Ward"
+    assert near_data["distance_to_nearest_ward_km"] <= 5.0
+    assert "danger_factor" in near_data and "safety_factor" in near_data
+    assert "nearest_safe_zone" in near_data
+    print(f"[OK] Near-Ward Location Risk Passed: {near_data['location_name']} -> Danger: {near_data['danger_factor']}, Safety: {near_data['safety_factor']} (Nearest: {near_data['nearest_ward_name']}, {near_data['distance_to_nearest_ward_km']}km, Estimated: {near_data['is_estimated']})")
+
+    # Test 10B: Far from any seeded ward (Rishikesh/Dehradun region ~30.1030, 78.2940) -> Expect is_estimated == True & IDW interpolation
+    res_far = client.post("/location-risk", json={
+        "latitude": 30.1030,
+        "longitude": 78.2940
+    })
+    assert res_far.status_code == 200, f"Location risk far from ward failed: {res_far.text}"
+    far_data = res_far.json()
+    assert far_data["is_estimated"] is True, "Location > 5km from any ward MUST have is_estimated == True"
+    assert far_data["distance_to_nearest_ward_km"] > 5.0
+    assert any("Estimated" in f for f in far_data["contributing_factors"])
+    print(f"[OK] Far Location Risk (Interpolated) Passed: {far_data['location_name']} -> Danger: {far_data['danger_factor']}, Safety: {far_data['safety_factor']} (Estimated: {far_data['is_estimated']})")
+
+    # Test 10C: Address input (Kedarnath Dham)
+    res_addr = client.post("/location-risk", json={
+        "address": "Kedarnath, Uttarakhand"
+    })
+    assert res_addr.status_code == 200, f"Address location risk failed: {res_addr.text}"
+    addr_data = res_addr.json()
+    assert "danger_factor" in addr_data and "risk_level" in addr_data
+    print(f"[OK] Address Geocoding Location Risk Passed: '{addr_data['location_name']}' -> Risk: {addr_data['risk_level']}")
+
+    # Test 10D: Invalid input (empty address and missing coords) -> Expect 400
+    res_invalid = client.post("/location-risk", json={})
+    assert res_invalid.status_code == 400
+    print("[OK] Invalid Location Input Gracefully Handled (400 Bad Request)")
+
+
     print("\n==========================================")
     print("ALL API & RBAC TESTS PASSED SUCCESSFULLY!")
     print("==========================================")

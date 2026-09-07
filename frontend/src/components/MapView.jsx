@@ -19,7 +19,9 @@ export default function MapView({
   error, 
   onRetry,
   onSimulateSpike,
-  safeZones = []
+  safeZones = [],
+  queriedLocation = null,
+  onMapClickLocation = null
 }) {
   const [viewMode, setViewMode] = useState('map'); // 'map' | 'grid' | 'table'
   const [baseTileType, setBaseTileType] = useState('topo'); // 'osm' | 'topo'
@@ -41,6 +43,7 @@ export default function MapView({
   const riversLayerRef = useRef(null);
   const districtsLayerRef = useRef(null);
   const safeZonesLayerGroupRef = useRef(null);
+  const queriedLayerGroupRef = useRef(null);
   const routePolylineRef = useRef(null);
 
   // Filter wards by severity & search
@@ -98,6 +101,14 @@ export default function MapView({
       riversLayerRef.current = L.layerGroup().addTo(map);
       markersLayerGroupRef.current = L.layerGroup().addTo(map);
       safeZonesLayerGroupRef.current = L.layerGroup().addTo(map);
+      queriedLayerGroupRef.current = L.layerGroup().addTo(map);
+
+      // Map Click Event Listener for Location Risk Check
+      map.on('click', (e) => {
+        if (onMapClickLocation) {
+          onMapClickLocation(e.latlng.lat, e.latlng.lng);
+        }
+      });
 
       mapInstanceRef.current = map;
     }
@@ -109,7 +120,8 @@ export default function MapView({
         mapInstanceRef.current = null;
       }
     };
-  }, [viewMode]);
+  }, [viewMode, onMapClickLocation]);
+
 
   // 2. Base Tile Layer Handler (OSM vs OpenTopoMap Topo Contours)
   useEffect(() => {
@@ -211,7 +223,7 @@ export default function MapView({
       heatLayerRef.current = null;
     }
 
-    if (showHeatmap && filteredWards.length > 0) {
+    if (showHeatmap) {
       const heatPoints = filteredWards
         .filter(w => w.latitude && w.longitude)
         .map(w => [
@@ -219,6 +231,15 @@ export default function MapView({
           w.longitude,
           Math.max(0.3, (w.riskScore || 20) / 100.0)
         ]);
+
+      // If user queried a location, include it on the same heatmap
+      if (queriedLocation && queriedLocation.latitude && queriedLocation.longitude) {
+        heatPoints.push([
+          queriedLocation.latitude,
+          queriedLocation.longitude,
+          Math.max(0.35, (queriedLocation.danger_factor || 40) / 100.0)
+        ]);
+      }
 
       if (heatPoints.length > 0 && typeof L.heatLayer === 'function') {
         heatLayerRef.current = L.heatLayer(heatPoints, {
@@ -234,7 +255,67 @@ export default function MapView({
         }).addTo(map);
       }
     }
-  }, [showHeatmap, filteredWards, viewMode]);
+  }, [showHeatmap, filteredWards, queriedLocation, viewMode]);
+
+  // 5b. Render User-Queried Location Distinct Marker & Fly To
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !queriedLayerGroupRef.current) return;
+
+    queriedLayerGroupRef.current.clearLayers();
+
+    if (!queriedLocation || !queriedLocation.latitude || !queriedLocation.longitude) return;
+
+    const lat = queriedLocation.latitude;
+    const lng = queriedLocation.longitude;
+    const cfg = SEVERITY_LEVELS[queriedLocation.risk_level] || SEVERITY_LEVELS.SAFE;
+
+    const queriedIcon = L.divIcon({
+      className: 'custom-queried-location-marker-container',
+      html: `
+        <div class="custom-queried-marker">
+          <div class="marker-pin-head" style="background: ${cfg.hex}">📍</div>
+          <div class="marker-tag" style="background: #0f172a; border: 2px solid ${cfg.hex}; color: #f8fafc">
+            <span class="ward-title">${queriedLocation.location_name || 'Checked Location'}</span>
+            <span class="ward-score" style="color: ${cfg.hex}">${queriedLocation.danger_factor} / 100</span>
+          </div>
+        </div>
+      `,
+      iconSize: [180, 36],
+      iconAnchor: [12, 12]
+    });
+
+    const marker = L.marker([lat, lng], { icon: queriedIcon });
+    marker.bindTooltip(
+      `<b>📍 ${queriedLocation.location_name}</b><br/>Danger Factor: ${queriedLocation.danger_factor}/100<br/>Risk Level: ${queriedLocation.risk_level}<br/>${queriedLocation.is_estimated ? '⚠️ Estimated Point' : '📡 Station Coverage'}`,
+      { direction: 'top' }
+    );
+
+    queriedLayerGroupRef.current.addLayer(marker);
+
+    // Center & pan map smoothly to queried location
+    map.flyTo([lat, lng], 11, { animate: true, duration: 1.2 });
+
+    // Evacuation route polyline from queried point to nearest safe zone
+    if (queriedLocation.nearest_safe_zone && queriedLocation.nearest_safe_zone.latitude && queriedLocation.nearest_safe_zone.longitude) {
+      const sz = queriedLocation.nearest_safe_zone;
+      const routeCoords = [[lat, lng], [sz.latitude, sz.longitude]];
+      const polyline = L.polyline(routeCoords, {
+        color: '#38bdf8',
+        weight: 3.5,
+        opacity: 0.95,
+        dashArray: '6, 6'
+      });
+
+      polyline.bindTooltip(
+        `🛡️ Evacuation Route: ${queriedLocation.location_name} -> ${sz.name} (${sz.distance_km} km ${sz.direction})`,
+        { permanent: true, direction: 'center', className: 'bg-slate-950 text-cyan-200 font-mono text-[10px] border border-cyan-500 px-2 py-0.5 rounded shadow-xl' }
+      );
+
+      queriedLayerGroupRef.current.addLayer(polyline);
+    }
+  }, [queriedLocation, viewMode]);
+
 
   // 6. Render Safe Zone Evacuation Markers
   useEffect(() => {

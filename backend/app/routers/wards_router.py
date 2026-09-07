@@ -4,12 +4,18 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from backend.app.database import get_db
 from backend.app.models.db_models import Ward, SensorReading, RiskAssessment, HistoricalIncident, Alert
-from backend.app.schemas.api_schemas import WardOut, WardDetailOut, SensorReadingOut, SimulateReadingInput
+from backend.app.schemas.api_schemas import WardOut, WardDetailOut, SensorReadingOut, SimulateReadingInput, LocationRiskInput, LocationRiskOut
 from backend.app.services.risk_engine import calculate_risk
 from backend.app.services.safe_zone_service import get_nearest_safe_zone
 from backend.app.services.pdf_service import generate_ward_pdf_report
+from backend.app.services.location_risk_service import evaluate_location_risk
 
 router = APIRouter(prefix="/wards", tags=["Wards & Telemetry"])
+
+@router.post("/location-risk", response_model=LocationRiskOut, tags=["Location Risk"])
+def check_location_risk_endpoint(payload: LocationRiskInput, db: Session = Depends(get_db)):
+    return evaluate_location_risk(payload, db)
+
 
 @router.get("", response_model=List[WardOut])
 def get_wards(district: Optional[str] = None, db: Session = Depends(get_db)):

@@ -1,14 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, MapPin, CheckCircle2, AlertTriangle, Shield, ArrowRight, PhoneCall, CheckSquare, Square, Truck, Home, Navigation, HelpCircle, LifeBuoy } from 'lucide-react';
+import MapView from './MapView';
+import LocationRiskCheck from './LocationRiskCheck';
+import { getWards, getSafeZones, checkLocationRisk, simulateReading } from '../api';
 
 export default function LiveAlertsSafetyView({ 
   onNavigateTab, 
   onOpenReportModal,
   onSelectShelterSearch 
 }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchedStatus, setSearchedStatus] = useState(null);
-  const [gpsLoading, setGpsLoading] = useState(false);
+  const [wards, setWards] = useState([]);
+  const [safeZones, setSafeZones] = useState([]);
+  const [selectedWard, setSelectedWard] = useState(null);
+  const [queriedLocation, setQueriedLocation] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState(null);
+  const [wardsLoading, setWardsLoading] = useState(false);
+  const [telemetryError, setTelemetryError] = useState(null);
 
   // Interactive Checklist State
   const [checklist, setChecklist] = useState({
@@ -22,132 +30,111 @@ export default function LiveAlertsSafetyView({
     setChecklist((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-
-    // Simulate search match logic
-    const query = searchQuery.toLowerCase();
-    if (query.includes('17') || query.includes('riverbank') || query.includes('kedarnath')) {
-      setSearchedStatus({
-        status: 'HIGH_RISK',
-        title: 'Ward 17 (Riverbank Area)',
-        msg: 'Water level +1.4m. Evacuate ground floors immediately if within 100m of river edge.',
-        shelter: 'Government Model Senior Secondary School (0.8 km)',
-      });
-    } else if (query.includes('civil') || query.includes('underpass')) {
-      setSearchedStatus({
-        status: 'CAUTION',
-        title: 'Civil Lines Underpass Sector',
-        msg: 'Subway waterlogged (1.5 ft depth). Barricaded. Divert via Main Ring Road.',
-        shelter: 'Indoor Sports Stadium (1.9 km)',
-      });
-    } else {
-      setSearchedStatus({
-        status: 'SAFE',
-        title: `${searchQuery} Sector`,
-        msg: 'No water accumulation reported. Public transport running on time.',
-        shelter: 'Community Civic Pavilion (800m away)',
-      });
+  // Fetch telemetry & wards data on load
+  const loadTelemetryData = async () => {
+    setWardsLoading(true);
+    setTelemetryError(null);
+    try {
+      const [wData, szData] = await Promise.all([getWards(), getSafeZones()]);
+      setWards(wData);
+      setSafeZones(szData);
+      if (wData.length > 0 && !selectedWard) {
+        setSelectedWard(wData[0]);
+      }
+    } catch (err) {
+      console.warn("[LiveAlerts] Telemetry fetch warning:", err.message);
+      setTelemetryError(err.message);
+    } finally {
+      setWardsLoading(false);
     }
   };
 
-  const handleGpsCheck = () => {
-    setGpsLoading(true);
-    setTimeout(() => {
-      setGpsLoading(false);
-      setSearchedStatus({
-        status: 'SAFE',
-        title: 'Your Location: Central & South Sector',
-        msg: 'No water accumulation reported. All clear. Nearest dry supply shelter is 800m away.',
-        shelter: 'Community Center (800m away)',
+  useEffect(() => {
+    loadTelemetryData();
+  }, []);
+
+  const handleCheckLocation = async (payload) => {
+    setLocationLoading(true);
+    setLocationError(null);
+    try {
+      const res = await checkLocationRisk(payload);
+      setQueriedLocation(res);
+    } catch (err) {
+      setLocationError(err.message || "Failed to calculate hazard score for location.");
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const handleMapClickLocation = (lat, lng) => {
+    handleCheckLocation({ latitude: lat, longitude: lng });
+  };
+
+  const handleSimulateSpike = async (wardId) => {
+    try {
+      await simulateReading(wardId, {
+        rainfall_1h_mm: 55.0,
+        rainfall_72h_mm: 240.0,
+        soil_moisture_pct: 88.0
       });
-    }, 800);
+      await loadTelemetryData();
+    } catch (err) {
+      console.error("[Simulation] Spike failed:", err.message);
+    }
   };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-8">
       
-      {/* 1. Instant Citizen Check Section */}
-      <section className="bg-white border border-slate-200/90 rounded-xl p-5 sm:p-6 shadow-2xs">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+      {/* 1. Check This Location Panel (Address Search & GPS Check) */}
+      <section>
+        <LocationRiskCheck
+          onCheckLocation={handleCheckLocation}
+          locationResult={queriedLocation}
+          isLoading={locationLoading}
+          error={locationError}
+          onClearResult={() => setQueriedLocation(null)}
+        />
+      </section>
+
+      {/* 2. Interactive GIS Leaflet Heatmap & Risk Dashboard */}
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 font-mono">
-              INSTANT CITIZEN CHECK
+              GIS TELEMETRY ENGINE & HEATMAP
             </span>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              Is my neighborhood safe right now?
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Type your sector or tap location to receive a simple, verified status.
+            <h3 className="text-xl font-black text-slate-900 tracking-tight">
+              Uttarakhand River Catchment Risk Map
+            </h3>
+            <p className="text-xs text-slate-500">
+              Live heat intensity weighted by ward hazard scores. Click any point on map to inspect location risk.
             </p>
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>Verified 2 mins ago by Civil Defense</span>
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+            <span className="text-slate-600">18 Ward AWS Sensors Active</span>
           </div>
         </div>
 
-        {/* Search Input Bar */}
-        <form onSubmit={handleSearch} className="mt-4 flex flex-col sm:flex-row items-center gap-2">
-          <div className="relative w-full">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Type colony, landmark, or street name (e.g., Civil Lines, Ward 17, Model Town)..."
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-900 outline-none focus:ring-2 focus:ring-slate-900 transition-all placeholder:text-slate-400"
-            />
-          </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-            <button
-              type="button"
-              onClick={handleGpsCheck}
-              disabled={gpsLoading}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-bold rounded-lg transition-all"
-            >
-              <MapPin className="w-3.5 h-3.5 text-blue-600" />
-              <span>{gpsLoading ? 'Locating...' : 'Check My GPS'}</span>
-            </button>
-            <button
-              type="submit"
-              className="flex-1 sm:flex-none px-6 py-2.5 bg-slate-950 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition-all shadow-xs"
-            >
-              Search
-            </button>
-          </div>
-        </form>
-
-        {/* Dynamic Search / Default Status Alert Box */}
-        <div className="mt-4 bg-blue-50/70 border border-blue-200/90 rounded-lg p-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-xs text-slate-900">
-                  {searchedStatus ? searchedStatus.title : 'Your Area: Normal (Central & South)'}
-                </span>
-                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-extrabold uppercase rounded font-mono">
-                  ALL CLEAR
-                </span>
-              </div>
-              <p className="text-xs text-slate-600 mt-1 leading-snug">
-                {searchedStatus ? searchedStatus.msg : 'No water accumulation reported. Public transport running on time. Nearest dry supply shelter: Community Center (800m away).'}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => onNavigateTab('shelters')}
-            className="text-xs font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1 whitespace-nowrap"
-          >
-            <span>View 4 open shelters</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+        <div className="h-[600px] w-full rounded-xl overflow-hidden shadow-lg border border-slate-200">
+          <MapView
+            wards={wards}
+            selectedWard={selectedWard}
+            onSelectWard={(w) => setSelectedWard(w)}
+            activeFilter="ALL"
+            isLoading={wardsLoading}
+            error={telemetryError}
+            onRetry={loadTelemetryData}
+            onSimulateSpike={handleSimulateSpike}
+            safeZones={safeZones}
+            queriedLocation={queriedLocation}
+            onMapClickLocation={handleMapClickLocation}
+          />
         </div>
       </section>
 
-      {/* 2. Active Citizen Safety Advisories */}
+      {/* 3. Active Citizen Safety Advisories */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -235,7 +222,7 @@ export default function LiveAlertsSafetyView({
         </div>
       </section>
 
-      {/* 3. CITIZEN ASSISTANCE SERVICES */}
+      {/* 4. CITIZEN ASSISTANCE SERVICES */}
       <section className="space-y-4">
         <div>
           <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 font-mono">
@@ -337,7 +324,7 @@ export default function LiveAlertsSafetyView({
         </div>
       </section>
 
-      {/* 4. Lower 2-Column Section: Offline Checklist & Direct Municipal Lines */}
+      {/* 5. Lower 2-Column Section: Offline Checklist & Direct Municipal Lines */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         
         {/* Left Column: Quick Offline Safety Checklist */}
