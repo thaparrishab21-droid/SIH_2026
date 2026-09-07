@@ -27,6 +27,9 @@ class Ward(Base):
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
     safe_zone_name = Column(String, nullable=False)
+    soil_cohesion_kpa = Column(Float, nullable=False, default=12.0)
+    soil_friction_angle_deg = Column(Float, nullable=False, default=30.0)
+    soil_unit_weight_kn_m3 = Column(Float, nullable=False, default=19.0)
 
     readings = relationship("SensorReading", back_populates="ward", cascade="all, delete-orphan")
     risk_assessments = relationship("RiskAssessment", back_populates="ward", cascade="all, delete-orphan")

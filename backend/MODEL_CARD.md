@@ -30,6 +30,27 @@
 
 ---
 
+## ⛰️ Geotechnical Infinite-Slope Stability Model (Factor of Safety)
+
+The risk engines compute a deterministic geotechnical Factor of Safety (FoS) based on the **Infinite-Slope Model**:
+
+$$\text{FoS} = \frac{c + (\gamma - \gamma_w \cdot m) \cdot \cos^2(\beta) \cdot \tan(\phi)}{\gamma \cdot \sin(\beta) \cdot \cos(\beta)}$$
+
+Where:
+- $c$: Soil cohesion ($\text{kPa}$).
+- $\gamma$: Soil unit weight ($\text{kN/m}^3$).
+- $\gamma_w$: Water unit weight ($9.81\ \text{kN/m}^3$).
+- $m$: Pore pressure ratio derived from `soil_moisture_pct` ($m = \text{soil\_moisture\_pct} / 100.0$).
+- $\beta$: Slope angle in radians ($\text{radians}(\text{slope\_angle\_deg})$).
+- $\phi$: Soil internal friction angle in radians ($\text{radians}(\text{soil\_friction\_angle\_deg})$).
+
+> [!NOTE]
+> **ESTIMATED GEOTECHNICAL DEFAULTS**
+> The values used for soil cohesion ($c = 12.0\ \text{kPa}$), internal friction angle ($\phi = 30.0^\circ$), and soil unit weight ($\gamma = 19.0\ \text{kN/m}^3$) are **estimated default parameters** representative of Himalayan colluvium soil deposits. They do **not** represent site-surveyed geotechnical drill core samples. In field deployments, these parameters should be updated per ward with localized borehole survey data.
+
+---
+
+
 ## 🎯 Model Performance & Metric Evaluation
 
 ### Metric Prioritization: Why Recall Matters Most

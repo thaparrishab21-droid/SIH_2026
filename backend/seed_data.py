@@ -305,10 +305,14 @@ def seed_database():
                 population=wdata["population"],
                 latitude=wdata["latitude"],
                 longitude=wdata["longitude"],
-                safe_zone_name=wdata["safe_zone_name"]
+                safe_zone_name=wdata["safe_zone_name"],
+                soil_cohesion_kpa=wdata.get("soil_cohesion_kpa", 12.0),
+                soil_friction_angle_deg=wdata.get("soil_friction_angle_deg", 30.0),
+                soil_unit_weight_kn_m3=wdata.get("soil_unit_weight_kn_m3", 19.0)
             )
             db.add(ward)
             db.flush()
+
 
             # 1. Historical Sensor Readings (Last 72 hours time series)
             now = datetime.utcnow()

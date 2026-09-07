@@ -118,6 +118,9 @@ class WardBase(BaseModel):
     latitude: float
     longitude: float
     safe_zone_name: str
+    soil_cohesion_kpa: float = Field(default=12.0, description="Estimated soil cohesion in kPa")
+    soil_friction_angle_deg: float = Field(default=30.0, description="Estimated soil internal friction angle in degrees")
+    soil_unit_weight_kn_m3: float = Field(default=19.0, description="Estimated soil unit weight in kN/m3")
 
 class WardOut(WardBase):
     id: int

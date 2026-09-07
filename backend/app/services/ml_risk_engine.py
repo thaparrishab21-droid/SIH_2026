@@ -77,7 +77,31 @@ def predict_risk_ml(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
     else:
         risk_level = "Safe"
 
+    cohesion = float(getattr(ward, "soil_cohesion_kpa", 12.0))
+    friction_angle = float(getattr(ward, "soil_friction_angle_deg", 30.0))
+    unit_weight = float(getattr(ward, "soil_unit_weight_kn_m3", 19.0))
+
+    from backend.app.services.risk_engine import calculate_factor_of_safety
+    fos = calculate_factor_of_safety(
+        slope_angle_deg=slope,
+        soil_moisture_pct=sm,
+        cohesion_kpa=cohesion,
+        friction_angle_deg=friction_angle,
+        unit_weight_kn_m3=unit_weight
+    )
+
+    if fos < 1.0:
+        fos_label = "unstable"
+    elif fos < 1.3:
+        fos_label = "marginally stable"
+    elif fos < 1.6:
+        fos_label = "conditionally stable"
+    else:
+        fos_label = "stable"
+
     factors: List[str] = []
+    factors.append(f"Factor of Safety: {fos:.2f} — {fos_label}")
+
     val_map = {
         "rainfall_72h_mm": (r72, f"72h rainfall ({r72:.1f}mm)"),
         "soil_moisture_pct": (sm, f"Soil moisture saturation ({sm:.1f}%)"),
@@ -105,6 +129,8 @@ def predict_risk_ml(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
         "risk_level": risk_level,
         "risk_score": risk_score,
         "contributing_factors": factors,
+        "factor_of_safety": fos,
         "engine_used": "ml_xgboost",
         "predicted_probability": prob
     }
+
