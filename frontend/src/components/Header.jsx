@@ -33,21 +33,16 @@ export default function Header({
 
       {/* Main Nav Header */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-4">
-        {/* Left: Brand Identity */}
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('alerts')}>
-          <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white font-black shadow-sm shrink-0">
-            <span className="w-3 h-3 rounded-full bg-white animate-pulse"></span>
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-black tracking-tight text-slate-900 font-sans">
-                FLOOD-FLASH
-              </span>
-              <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-600 rounded">
-                CITIZEN PORTAL
-              </span>
-            </div>
-          </div>
+        {/* Left: Brand Identity with PREDICT FLOW Logo */}
+        <div className="flex items-center gap-3 cursor-pointer group py-1" onClick={() => setActiveTab('alerts')}>
+          <img 
+            src="/predict-flow-logo.png" 
+            alt="PREDICT FLOW Logo" 
+            className="h-14 sm:h-16 md:h-18 w-auto object-contain transition-transform group-hover:scale-105"
+          />
+          <span className="text-[11px] uppercase font-mono font-black tracking-widest px-2.5 py-1 bg-slate-100 border border-slate-200 text-slate-700 rounded-md hidden md:inline-block shadow-2xs">
+            CITIZEN PORTAL
+          </span>
         </div>
 
         {/* Center: Navigation Links */}

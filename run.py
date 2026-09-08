@@ -8,7 +8,7 @@ def run():
     frontend_dir = os.path.join(root_dir, "frontend")
 
     print("========================================================")
-    print("  Starting Flood-Flash Predictive Early Warning System  ")
+    print("  Starting PREDICT FLOW Predictive Early Warning System ")
     print("========================================================")
 
     print("\n1. Seeding Database...")

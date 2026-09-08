@@ -77,11 +77,11 @@ export default function IdentityAuthModal({ isOpen, onClose, onLoginSuccess }) {
           <div className="md:col-span-6 flex flex-col justify-between space-y-5">
             <div>
               <div className="flex items-center gap-2 text-slate-900 font-bold text-sm tracking-tight mb-1">
-                <span className="text-blue-600 font-extrabold text-base">🌊</span>
-                <span>FLOOD-FLASH CITIZEN CONSOLE</span>
+                <img src="/predict-flow-logo.png" alt="PREDICT FLOW Logo" className="h-6 w-auto object-contain" />
+                <span>PREDICT FLOW CITIZEN CONSOLE</span>
               </div>
               <h2 className="text-2xl font-black tracking-tight text-slate-900">
-                Rapid Inundation & Rescue Portal
+                Rapid Hazard Prediction & Rescue Portal
               </h2>
               <p className="text-xs text-slate-600 mt-2 leading-relaxed">
                 Authorized telemetry bridge connecting local residents with National Disaster Response Force (NDRF), Ward Engineers, and real-time basin flow trackers.

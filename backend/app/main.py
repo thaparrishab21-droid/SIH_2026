@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.APP_NAME} in '{settings.ENVIRONMENT}' environment...")
     logger.info(f"Risk Engine Mode: '{settings.RISK_ENGINE_MODE}'")
     yield
-    logger.info("Shutting down Flood-Flash Early Warning Backend...")
+    logger.info("Shutting down PREDICT FLOW Early Warning Backend...")
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -70,7 +70,7 @@ app = FastAPI(
 # CORS Middleware Setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

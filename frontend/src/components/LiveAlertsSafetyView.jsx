@@ -161,7 +161,7 @@ export default function LiveAlertsSafetyView({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           
           {/* Card 1: High Risk */}
-          <div className="bg-white border-l-4 border-l-red-600 border border-slate-200/90 rounded-r-xl p-4 space-y-3 shadow-2xs flex flex-col justify-between">
+          <div className="bg-white border-l-4 border-l-red-600 border border-slate-200/90 rounded-r-xl p-4 space-y-3 shadow-2xs flex flex-col justify-between animated-flex-card hover-card-lift">
             <div>
               <div className="flex items-center justify-between text-[10px] font-mono font-bold">
                 <span className="px-1.5 py-0.5 bg-red-100 text-red-800 rounded">
@@ -186,7 +186,7 @@ export default function LiveAlertsSafetyView({
           </div>
 
           {/* Card 2: Caution */}
-          <div className="bg-white border-l-4 border-l-amber-500 border border-slate-200/90 rounded-r-xl p-4 space-y-3 shadow-2xs flex flex-col justify-between">
+          <div className="bg-white border-l-4 border-l-amber-500 border border-slate-200/90 rounded-r-xl p-4 space-y-3 shadow-2xs flex flex-col justify-between animated-flex-card hover-card-lift">
             <div>
               <div className="flex items-center justify-between text-[10px] font-mono font-bold">
                 <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 rounded">
@@ -209,7 +209,7 @@ export default function LiveAlertsSafetyView({
           </div>
 
           {/* Card 3: Normal */}
-          <div className="bg-white border-l-4 border-l-emerald-500 border border-slate-200/90 rounded-r-xl p-4 space-y-3 shadow-2xs flex flex-col justify-between">
+          <div className="bg-white border-l-4 border-l-emerald-500 border border-slate-200/90 rounded-r-xl p-4 space-y-3 shadow-2xs flex flex-col justify-between animated-flex-card hover-card-lift">
             <div>
               <div className="flex items-center justify-between text-[10px] font-mono font-bold">
                 <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-900 rounded">
@@ -533,7 +533,7 @@ export default function LiveAlertsSafetyView({
       {/* Footer */}
       <footer className="pt-6 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-4">
         <div>
-          <h5 className="font-bold text-slate-900">Flood-Flash Emergency Network</h5>
+          <h5 className="font-bold text-slate-900">Predict Flow Emergency Network</h5>
           <p className="text-[11px] mt-0.5">Official Municipal & Civil Defense Public Broadcast System. High-priority public information line active 24/7.</p>
         </div>
         <div className="flex items-center gap-4 text-[11px] font-bold text-slate-600">

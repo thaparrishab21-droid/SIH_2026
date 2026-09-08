@@ -41,17 +41,16 @@ def predict_risk_ml(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
     r72 = float(getattr(sensor_reading, "rainfall_72h_mm", 0.0))
     sm = float(getattr(sensor_reading, "soil_moisture_pct", 0.0))
 
-    slope = float(getattr(sensor_reading, "slope_angle_deg", 0.0))
-    if slope == 0.0 and hasattr(ward, "slope_angle_deg"):
-        slope = float(getattr(ward, "slope_angle_deg", 30.0))
-    if slope == 0.0:
-        slope = 30.0
+    slope_val = getattr(sensor_reading, "slope_angle_deg", None)
+    if slope_val is None and hasattr(ward, "slope_angle_deg"):
+        slope_val = getattr(ward, "slope_angle_deg", None)
+    slope = float(slope_val) if slope_val is not None else 15.0
 
-    incidents_count = 2
-    if hasattr(ward, "incidents"):
+    incidents_count = 0
+    if hasattr(ward, "historical_incident_count"):
+        incidents_count = int(getattr(ward, "historical_incident_count", 0))
+    elif hasattr(ward, "incidents"):
         incidents_count = len(getattr(ward, "incidents", []))
-    elif hasattr(ward, "historical_incident_count"):
-        incidents_count = int(getattr(ward, "historical_incident_count", 2))
 
     days_dry = 0 if r1 > 2.0 else (1 if r24 > 5.0 else 3)
 

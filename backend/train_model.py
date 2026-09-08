@@ -1,3 +1,4 @@
+from typing import Dict, Any, List
 import os
 import joblib
 import numpy as np
@@ -133,18 +134,32 @@ def train_and_calibrate():
 
     # Metrics evaluation
     y_pred = (calibrated_probs >= 0.5).astype(int)
-    acc = accuracy_score(y_test, y_pred)
-    prec = precision_score(y_test, y_pred)
-    rec = recall_score(y_test, y_pred)
-    f1 = f1_score(y_test, y_pred)
-    auc = roc_auc_score(y_test, calibrated_probs)
+    acc = float(accuracy_score(y_test, y_pred))
+    prec = float(precision_score(y_test, y_pred))
+    rec = float(recall_score(y_test, y_pred))
+    f1 = float(f1_score(y_test, y_pred))
+    auc = float(roc_auc_score(y_test, calibrated_probs))
 
-    logger.info(f"\nCalibrated Model Metrics:")
-    logger.info(f"  Accuracy : {acc:.4f}")
-    logger.info(f"  Precision: {prec:.4f}")
-    logger.info(f"  Recall   : {rec:.4f}")
-    logger.info(f"  F1-Score : {f1:.4f}")
-    logger.info(f"  ROC-AUC  : {auc:.4f}")
+    metrics_summary = {
+        "accuracy": round(acc, 4),
+        "precision": round(prec, 4),
+        "recall": round(rec, 4),
+        "f1_score": round(f1, 4),
+        "roc_auc": round(auc, 4),
+        "dataset_size": 12000,
+        "calibration": "CalibratedClassifierCV (Sigmoid)",
+        "model_type": "XGBoost Classifier + Platt Scaling"
+    }
+
+    logger.info("\n" + "="*50)
+    logger.info("       CALIBRATED ML MODEL PERFORMANCE METRICS")
+    logger.info("="*50)
+    logger.info(f"  Accuracy  : {metrics_summary['accuracy']*100:.2f}% ({metrics_summary['accuracy']})")
+    logger.info(f"  Precision : {metrics_summary['precision']*100:.2f}% ({metrics_summary['precision']})")
+    logger.info(f"  Recall    : {metrics_summary['recall']*100:.2f}% ({metrics_summary['recall']})")
+    logger.info(f"  F1-Score  : {metrics_summary['f1_score']*100:.2f}% ({metrics_summary['f1_score']})")
+    logger.info(f"  ROC-AUC   : {metrics_summary['roc_auc']:.4f}")
+    logger.info("="*50 + "\n")
 
     # Extract feature importances from base_xgb
     importances = base_xgb.feature_importances_
@@ -153,13 +168,19 @@ def train_and_calibrate():
     artifact = {
         "model": calibrated_model,
         "feature_names": feature_names,
-        "feature_importances": feat_imp_dict
+        "feature_importances": feat_imp_dict,
+        "metrics": metrics_summary
     }
 
-    output_path = os.path.join(os.path.dirname(__file__), "app", "ml", "landslide_xgb_model.joblib")
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    joblib.dump(artifact, output_path)
-    logger.info(f"Successfully saved calibrated model artifact to {output_path}")
+    output_paths = [
+        os.path.join(os.path.dirname(__file__), "app", "ml", "landslide_xgb_model.joblib"),
+        os.path.join(os.path.dirname(__file__), "models", "landslide_xgb_model.joblib")
+    ]
+
+    for p in output_paths:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        joblib.dump(artifact, p)
+        logger.info(f"Successfully saved calibrated model artifact to {p}")
 
 if __name__ == "__main__":
     train_and_calibrate()

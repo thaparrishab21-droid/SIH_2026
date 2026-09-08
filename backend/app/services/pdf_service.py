@@ -160,7 +160,7 @@ def generate_ward_pdf_report(
 
     elements.append(Spacer(1, 15))
     elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#cbd5e1'), spaceBefore=4, spaceAfter=8))
-    elements.append(Paragraph("Uttarakhand State Disaster Management Authority (SDMA) • Flood-Flash Automated Telemetry Service v2.0", subtitle_style))
+    elements.append(Paragraph("Uttarakhand State Disaster Management Authority (SDMA) • Predict Flow Automated Telemetry Service v2.0", subtitle_style))
 
     doc.build(elements)
     buffer.seek(0)

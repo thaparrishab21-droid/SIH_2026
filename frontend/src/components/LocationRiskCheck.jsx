@@ -181,15 +181,15 @@ export default function LocationRiskCheck({
           {/* Readout Metrics Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             
-            {/* Readout 1: Danger Factor */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2">
+            {/* Readout 1: Landslide & Flood Danger Score */}
+            <div className="bg-slate-50 border border-slate-200/90 p-4 rounded-xl space-y-2 animated-flex-card hover-card-lift">
               <div className="flex items-center justify-between text-xs font-mono text-slate-500">
-                <span className="font-bold">DANGER FACTOR (0-100)</span>
+                <span className="font-bold">HAZARD DANGER SCORE (0-100)</span>
                 <span className={`font-black ${cfg.textColor}`}>{locationResult.danger_factor} / 100</span>
               </div>
               <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight" style={{ color: cfg.hex }}>
                 {locationResult.danger_factor}
-                <span className="text-xs text-slate-500 font-sans font-medium ml-2">Hazard Index</span>
+                <span className="text-xs text-slate-500 font-sans font-medium ml-2">Danger Index ({locationResult.risk_level})</span>
               </div>
               <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
                 <div 
@@ -199,28 +199,22 @@ export default function LocationRiskCheck({
               </div>
             </div>
 
-            {/* Readout 2: Safety Factor / Factor of Safety (FoS) */}
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2">
+            {/* Readout 2: Safety Index (100% - Danger) */}
+            <div className="bg-slate-50 border border-slate-200/90 p-4 rounded-xl space-y-2 animated-flex-card hover-card-lift">
               <div className="flex items-center justify-between text-xs font-mono text-slate-500">
-                <span className="font-bold">SAFETY FACTOR</span>
-                <span className="font-black text-emerald-700">
-                  {locationResult.factor_of_safety ? `FoS: ${locationResult.factor_of_safety}` : `${locationResult.safety_factor}%`}
-                </span>
+                <span className="font-bold">SAFETY & STABILITY INDEX</span>
+                <span className="font-black text-emerald-700">{locationResult.safety_factor}% Safe</span>
               </div>
-              <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-emerald-600">
-                {locationResult.factor_of_safety ? locationResult.factor_of_safety.toFixed(2) : locationResult.safety_factor}
+              <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-emerald-700">
+                {locationResult.safety_factor}%
                 <span className="text-xs text-slate-500 font-sans font-medium ml-2">
-                  {locationResult.factor_of_safety ? (locationResult.factor_of_safety < 1.0 ? 'Unstable (FoS < 1.0)' : locationResult.factor_of_safety < 1.3 ? 'Marginal Stability' : 'Stable Slope') : 'Safety Margin'}
+                  {locationResult.factor_of_safety ? `Geotechnical FoS: ${locationResult.factor_of_safety.toFixed(2)}` : 'Safety Margin'}
                 </span>
               </div>
               <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-emerald-500 transition-all duration-700 rounded-full" 
-                  style={{ 
-                    width: locationResult.factor_of_safety 
-                      ? `${Math.min(100, (locationResult.factor_of_safety / 2.5) * 100)}%` 
-                      : `${Math.min(100, locationResult.safety_factor)}%` 
-                  }}
+                  className="h-full bg-emerald-600 transition-all duration-700 rounded-full" 
+                  style={{ width: `${Math.min(100, Math.max(0, locationResult.safety_factor))}%` }}
                 />
               </div>
             </div>

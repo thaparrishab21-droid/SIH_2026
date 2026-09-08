@@ -59,13 +59,14 @@ export default function MapView({
   });
 
   const getSeverityBadge = (level) => {
-    const cfg = SEVERITY_LEVELS[level] || SEVERITY_LEVELS.SAFE;
+    const lvlUpper = (level || 'SAFE').toUpperCase();
+    const cfg = SEVERITY_LEVELS[lvlUpper] || SEVERITY_LEVELS.SAFE;
     return (
       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-bold tracking-wide border ${cfg.badgeBg} ${cfg.textColor} ${cfg.borderColor}`}>
-        {level === 'CRITICAL' && <AlertOctagon className="w-3.5 h-3.5 text-red-600 animate-pulse" />}
-        {level === 'WARNING' && <AlertTriangle className="w-3.5 h-3.5 text-orange-600" />}
-        {level === 'WATCH' && <Eye className="w-3.5 h-3.5 text-amber-600" />}
-        {level === 'SAFE' && <Shield className="w-3.5 h-3.5 text-emerald-600" />}
+        {lvlUpper === 'CRITICAL' && <AlertOctagon className="w-3.5 h-3.5 text-red-600 animate-pulse" />}
+        {lvlUpper === 'WARNING' && <AlertTriangle className="w-3.5 h-3.5 text-orange-600" />}
+        {lvlUpper === 'WATCH' && <Eye className="w-3.5 h-3.5 text-amber-600" />}
+        {lvlUpper === 'SAFE' && <Shield className="w-3.5 h-3.5 text-emerald-600" />}
         <span>L{cfg.level} {cfg.label.toUpperCase()}</span>
       </span>
     );
@@ -86,7 +87,10 @@ export default function MapView({
     }
   };
 
-  const clickPopupRef = useRef(null);
+  const onMapClickLocationRef = useRef(onMapClickLocation);
+  useEffect(() => {
+    onMapClickLocationRef.current = onMapClickLocation;
+  }, [onMapClickLocation]);
 
   // 1. Initialize Leaflet Map Instance
   useEffect(() => {
@@ -137,8 +141,8 @@ export default function MapView({
             `)
             .openOn(map);
 
-          if (typeof onMapClickLocation === 'function') {
-            onMapClickLocation(lat, lng);
+          if (typeof onMapClickLocationRef.current === 'function') {
+            onMapClickLocationRef.current(lat, lng);
           }
         } catch (err) {
           console.warn("[MapView] Map click listener warning:", err);
@@ -162,7 +166,7 @@ export default function MapView({
         mapInstanceRef.current = null;
       }
     };
-  }, [viewMode, onMapClickLocation, isLoading]);
+  }, [viewMode]);
 
   // 2. Base Tile Layer Handler (OSM vs OpenTopoMap Topo Contours)
   useEffect(() => {
@@ -279,7 +283,7 @@ export default function MapView({
 
       if (heatPoints.length > 0 && typeof L.heatLayer === 'function') {
         try {
-          heatLayerRef.current = L.heatLayer(heatPoints, {
+          const hLayer = L.heatLayer(heatPoints, {
             radius: 42,
             blur: 26,
             maxZoom: 12,
@@ -291,6 +295,10 @@ export default function MapView({
               0.95: '#ef4444'
             }
           }).addTo(map);
+          if (hLayer._canvas) {
+            hLayer._canvas.style.pointerEvents = 'none';
+          }
+          heatLayerRef.current = hLayer;
         } catch (err) {
           console.warn("[MapView] HeatLayer render warning:", err);
         }
@@ -309,7 +317,8 @@ export default function MapView({
 
     const lat = Number(queriedLocation.latitude);
     const lng = Number(queriedLocation.longitude);
-    const cfg = SEVERITY_LEVELS[queriedLocation.risk_level] || SEVERITY_LEVELS.SAFE;
+    const riskLvlUpper = (queriedLocation.risk_level || 'SAFE').toUpperCase();
+    const cfg = SEVERITY_LEVELS[riskLvlUpper] || SEVERITY_LEVELS.SAFE;
 
     const queriedIcon = L.divIcon({
       className: 'custom-queried-location-marker-container',
@@ -327,12 +336,54 @@ export default function MapView({
     });
 
     const marker = L.marker([lat, lng], { icon: queriedIcon, zIndexOffset: 1000 });
-    marker.bindTooltip(
-      `<b>📍 ${queriedLocation.location_name}</b><br/>Danger Factor: ${queriedLocation.danger_factor}/100<br/>Risk Level: ${queriedLocation.risk_level}<br/>${queriedLocation.is_estimated ? '⚠️ Estimated Point' : '📡 Station Coverage'}`,
-      { direction: 'top' }
-    );
+    
+    const safeZoneHtml = queriedLocation.nearest_safe_zone ? `
+      <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 11px;">
+        <div style="font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 4px;">
+          <span>🛡️ Nearest Safe Zone:</span>
+        </div>
+        <div style="color: #2563eb; font-weight: 800; margin-top: 2px;">${queriedLocation.nearest_safe_zone.name}</div>
+        <div style="color: #64748b; font-size: 10px;">${queriedLocation.nearest_safe_zone.distance_km} km ${queriedLocation.nearest_safe_zone.direction || ''} • Capacity: ${queriedLocation.nearest_safe_zone.capacity || 'N/A'}</div>
+      </div>
+    ` : '';
+
+    const popupHtml = `
+      <div style="background: #ffffff; color: #0f172a; padding: 12px; border-radius: 10px; border: 2px solid ${cfg.hex}; font-family: ui-sans-serif, system-ui, sans-serif; min-width: 220px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.18);">
+        <div style="font-weight: 800; font-size: 13px; color: #0f172a; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+          <span>📍 ${queriedLocation.location_name || 'Location Hazard Check'}</span>
+          <span style="background: ${cfg.hex}; color: #ffffff; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 800; text-transform: uppercase;">${queriedLocation.risk_level}</span>
+        </div>
+        <div style="font-size: 11px; color: #64748b; margin-bottom: 6px;">
+          Lat: <strong>${lat.toFixed(4)}°</strong> • Lng: <strong>${lng.toFixed(4)}°</strong>
+        </div>
+        <div style="background: #f8fafc; padding: 8px; border-radius: 6px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e2e8f0;">
+          <div>
+            <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700;">Landslide Risk Score</div>
+            <div style="font-size: 18px; font-weight: 900; color: ${cfg.hex};">${queriedLocation.danger_factor} <span style="font-size: 11px; font-weight: 500; color: #94a3b8;">/ 100</span></div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700;">Safety Index</div>
+            <div style="font-size: 16px; font-weight: 800; color: #059669;">${queriedLocation.safety_factor}%</div>
+          </div>
+        </div>
+        ${safeZoneHtml}
+      </div>
+    `;
+
+    marker.bindPopup(popupHtml, {
+      className: 'custom-map-click-popup',
+      closeButton: true,
+      offset: [0, -15]
+    });
 
     queriedLayerGroupRef.current.addLayer(marker);
+
+    // Open popup immediately on queried marker
+    setTimeout(() => {
+      try {
+        marker.openPopup();
+      } catch (e) {}
+    }, 300);
 
     const bounds = L.latLngBounds([[lat, lng]]);
 
@@ -424,15 +475,16 @@ export default function MapView({
       if (!ward || !ward.latitude || !ward.longitude) return;
 
       const isSelected = selectedWard && (selectedWard.id === ward.id || selectedWard.rawId === ward.rawId);
-      const isCritical = ward.riskLevel === 'CRITICAL';
-      const cfg = SEVERITY_LEVELS[ward.riskLevel] || SEVERITY_LEVELS.SAFE;
+      const wardLvlUpper = (ward.riskLevel || 'SAFE').toUpperCase();
+      const isCritical = wardLvlUpper === 'CRITICAL';
+      const cfg = SEVERITY_LEVELS[wardLvlUpper] || SEVERITY_LEVELS.SAFE;
 
       const customIcon = L.divIcon({
         className: 'custom-ward-marker-container',
         html: `
           <div class="custom-ward-marker ${isCritical ? 'is-critical' : ''} ${isSelected ? 'is-selected' : ''}">
             <div class="marker-dot" style="background: ${cfg.hex}; border: 2px solid ${isSelected ? '#2563eb' : '#ffffff'}; transform: ${isSelected ? 'scale(1.3)' : 'scale(1)'}"></div>
-            <div class="marker-tag" style="background: #ffffff; border: 1.5px solid ${isSelected ? '#2563eb' : cfg.hex}; color: #0f172a font-weight: 700">
+            <div class="marker-tag" style="background: #ffffff; border: 1.5px solid ${isSelected ? '#2563eb' : cfg.hex}; color: #0f172a; font-weight: 700">
               <span class="ward-title">${ward.name}</span>
               <span class="ward-score" style="color: ${cfg.hex}">${ward.riskScore}</span>
             </div>
@@ -645,19 +697,19 @@ export default function MapView({
           </div>
         )}
 
-        {/* Loading State Skeleton */}
+        {/* Loading Overlay (Floats over map without unmounting Leaflet DOM container) */}
         {isLoading && (
-          <div className="w-full h-full min-h-[580px] flex items-center justify-center bg-slate-100/70 border border-slate-200 rounded-lg">
-            <div className="text-center space-y-3 p-6">
-              <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
-              <p className="text-sm font-bold text-slate-800">Synchronizing GIS Telemetry & Leaflet Map...</p>
-              <p className="text-xs text-slate-500 font-mono">Fetching latest sensor readings & ML hazard scores</p>
+          <div className="absolute inset-0 z-30 bg-slate-900/10 backdrop-blur-[1px] flex items-center justify-center pointer-events-auto rounded-lg">
+            <div className="text-center space-y-3 p-5 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/80 animate-in fade-in zoom-in-95 duration-200">
+              <RefreshCw className="w-7 h-7 text-blue-600 animate-spin mx-auto" />
+              <p className="text-xs font-bold text-slate-800 tracking-tight">Calculating Landslide & Flood Hazard...</p>
+              <p className="text-[10px] text-slate-500 font-mono">Running XGBoost Terrain & Weather Matrix</p>
             </div>
           </div>
         )}
 
         {/* MODE 1: LEAFLET GIS MAP */}
-        {!isLoading && viewMode === 'map' && (
+        {viewMode === 'map' && (
           <div className="w-full h-full min-h-[580px] bg-slate-200 border border-slate-300 rounded-lg relative overflow-hidden shadow-inner">
             <div ref={mapContainerRef} className="w-full h-full min-h-[580px] z-0" />
 

@@ -3,6 +3,8 @@
  * Connects frontend dashboard components to FastAPI backend endpoints.
  */
 
+import { MOCK_WARDS } from './data/severityConfig';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 let authToken = localStorage.getItem('flood_flash_token') || null;
@@ -178,15 +180,24 @@ export async function getSafeZones(district) {
     const data = await apiFetch(`/safe-zones${query}`);
     return data;
   } catch (err) {
-    console.warn("Safe zones fetch fallback:", err.message);
-    return [];
+    console.warn("[API] Safe zones fetch fallback:", err.message);
+    return [
+      { id: 1, name: "Mandakini Helipad Ground", latitude: 30.73, longitude: 79.06, capacity: 2500, district: "Rudraprayag" },
+      { id: 2, name: "Joshimath Army Stadium", latitude: 30.55, longitude: 79.56, capacity: 5000, district: "Chamoli" },
+      { id: 3, name: "Agastyamuni Sports Stadium", latitude: 30.39, longitude: 78.98, capacity: 4000, district: "Rudraprayag" }
+    ];
   }
 }
 
 export async function getWards(district) {
-  const query = district ? `?district=${encodeURIComponent(district)}` : '';
-  const data = await apiFetch(`/wards${query}`);
-  return data.map(normalizeWard);
+  try {
+    const query = district ? `?district=${encodeURIComponent(district)}` : '';
+    const data = await apiFetch(`/wards${query}`);
+    return data.map(normalizeWard);
+  } catch (err) {
+    console.warn("[API] Wards fetch fallback to mock telemetry dataset:", err.message);
+    return (MOCK_WARDS || []).map(normalizeWard);
+  }
 }
 
 export async function getWardDetail(wardId) {

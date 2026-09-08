@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 class Settings(BaseSettings):
-    APP_NAME: str = "Flood-Flash Early Warning Backend"
+    APP_NAME: str = "PREDICT FLOW Emergency & GIS Early Warning Backend"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
     
