@@ -1,7 +1,10 @@
-"""
-Automated Comprehensive Test Suite for Flood-Flash FastAPI Backend (v2.0).
-Tests authentication, RBAC, safe zones, PDF report exports, risk escalation, and alert dispatch.
-"""
+import sys
+import os
+
+file_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(file_dir)
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
 
 from fastapi.testclient import TestClient
 from backend.app.main import app
