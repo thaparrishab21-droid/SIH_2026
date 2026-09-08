@@ -81,6 +81,8 @@ export default function MapView({
     }
   };
 
+  const clickPopupRef = useRef(null);
+
   // 1. Initialize Leaflet Map Instance
   useEffect(() => {
     if (viewMode !== 'map' || !mapContainerRef.current) return;
@@ -105,8 +107,31 @@ export default function MapView({
 
       // Map Click Event Listener for Location Risk Check
       map.on('click', (e) => {
+        const { lat, lng } = e.latlng;
+        
+        if (clickPopupRef.current) {
+          map.closePopup(clickPopupRef.current);
+        }
+
+        clickPopupRef.current = L.popup({
+          className: 'custom-map-click-popup',
+          closeButton: true,
+          offset: [0, -10]
+        })
+          .setLatLng([lat, lng])
+          .setContent(`
+            <div style="background: #0f172a; color: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #38bdf8; font-family: monospace; font-size: 11px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+              <div style="font-weight: 800; font-size: 12px; color: #38bdf8; margin-bottom: 4px;">📍 Clicked Location</div>
+              <div>Lat: <strong>${lat.toFixed(4)}° N</strong> • Lng: <strong>${lng.toFixed(4)}° E</strong></div>
+              <div style="margin-top: 6px; color: #f59e0b; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                <span>⏳ Calculating Landslide & Flood Risk...</span>
+              </div>
+            </div>
+          `)
+          .openOn(map);
+
         if (onMapClickLocation) {
-          onMapClickLocation(e.latlng.lat, e.latlng.lng);
+          onMapClickLocation(lat, lng);
         }
       });
 
@@ -273,26 +298,26 @@ export default function MapView({
 
     if (!queriedLocation || !queriedLocation.latitude || !queriedLocation.longitude) return;
 
-    const lat = queriedLocation.latitude;
-    const lng = queriedLocation.longitude;
+    const lat = Number(queriedLocation.latitude);
+    const lng = Number(queriedLocation.longitude);
     const cfg = SEVERITY_LEVELS[queriedLocation.risk_level] || SEVERITY_LEVELS.SAFE;
 
     const queriedIcon = L.divIcon({
       className: 'custom-queried-location-marker-container',
       html: `
         <div class="custom-queried-marker">
-          <div class="marker-pin-head" style="background: ${cfg.hex}">📍</div>
+          <div class="marker-pin-head" style="background: ${cfg.hex}; box-shadow: 0 0 12px ${cfg.hex}">📍</div>
           <div class="marker-tag" style="background: #0f172a; border: 2px solid ${cfg.hex}; color: #f8fafc">
             <span class="ward-title">${queriedLocation.location_name || 'Checked Location'}</span>
             <span class="ward-score" style="color: ${cfg.hex}">${queriedLocation.danger_factor} / 100</span>
           </div>
         </div>
       `,
-      iconSize: [180, 36],
-      iconAnchor: [12, 12]
+      iconSize: [190, 40],
+      iconAnchor: [14, 14]
     });
 
-    const marker = L.marker([lat, lng], { icon: queriedIcon });
+    const marker = L.marker([lat, lng], { icon: queriedIcon, zIndexOffset: 1000 });
     marker.bindTooltip(
       `<b>📍 ${queriedLocation.location_name}</b><br/>Danger Factor: ${queriedLocation.danger_factor}/100<br/>Risk Level: ${queriedLocation.risk_level}<br/>${queriedLocation.is_estimated ? '⚠️ Estimated Point' : '📡 Station Coverage'}`,
       { direction: 'top' }
@@ -300,16 +325,19 @@ export default function MapView({
 
     queriedLayerGroupRef.current.addLayer(marker);
 
-    // Center & pan map smoothly to queried location
-    map.flyTo([lat, lng], 11, { animate: true, duration: 1.2 });
+    const bounds = L.latLngBounds([[lat, lng]]);
 
     // Evacuation route polyline from queried point to nearest safe zone
     if (queriedLocation.nearest_safe_zone && queriedLocation.nearest_safe_zone.latitude && queriedLocation.nearest_safe_zone.longitude) {
       const sz = queriedLocation.nearest_safe_zone;
-      const routeCoords = [[lat, lng], [sz.latitude, sz.longitude]];
+      const szLat = Number(sz.latitude);
+      const szLng = Number(sz.longitude);
+      bounds.extend([szLat, szLng]);
+
+      const routeCoords = [[lat, lng], [szLat, szLng]];
       const polyline = L.polyline(routeCoords, {
         color: '#38bdf8',
-        weight: 3.5,
+        weight: 4,
         opacity: 0.95,
         dashArray: '6, 6'
       });
@@ -321,6 +349,25 @@ export default function MapView({
 
       queriedLayerGroupRef.current.addLayer(polyline);
     }
+
+    // Auto-fit map viewport to show searched location pin AND evacuation route
+    try {
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [60, 60], maxZoom: 12, animate: true, duration: 1.2 });
+      } else {
+        map.flyTo([lat, lng], 11, { animate: true, duration: 1.2 });
+      }
+    } catch (e) {
+      map.panTo([lat, lng]);
+    }
+
+    // Force map to recalculate container dimensions
+    setTimeout(() => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize();
+      }
+    }, 150);
+
   }, [queriedLocation, viewMode, isLoading]);
 
 

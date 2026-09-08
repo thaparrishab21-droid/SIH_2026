@@ -18,6 +18,14 @@ export default function LiveAlertsSafetyView({
   const [wardsLoading, setWardsLoading] = useState(false);
   const [telemetryError, setTelemetryError] = useState(null);
 
+  const mapSectionRef = React.useRef(null);
+
+  const scrollToMap = () => {
+    if (mapSectionRef.current) {
+      mapSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
   // Interactive Checklist State
   const [checklist, setChecklist] = useState({
     electricMeter: true,
@@ -59,6 +67,9 @@ export default function LiveAlertsSafetyView({
     try {
       const res = await checkLocationRisk(payload);
       setQueriedLocation(res);
+      setTimeout(() => {
+        scrollToMap();
+      }, 350);
     } catch (err) {
       setLocationError(err.message || "Failed to calculate hazard score for location.");
     } finally {
@@ -94,11 +105,12 @@ export default function LiveAlertsSafetyView({
           isLoading={locationLoading}
           error={locationError}
           onClearResult={() => setQueriedLocation(null)}
+          onViewOnMap={scrollToMap}
         />
       </section>
 
       {/* 2. Interactive GIS Leaflet Heatmap & Risk Dashboard */}
-      <section className="space-y-3">
+      <section ref={mapSectionRef} className="space-y-3 scroll-mt-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 font-mono">

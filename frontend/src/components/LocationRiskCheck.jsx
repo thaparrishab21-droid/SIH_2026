@@ -7,7 +7,8 @@ export default function LocationRiskCheck({
   locationResult, 
   isLoading, 
   error, 
-  onClearResult 
+  onClearResult,
+  onViewOnMap
 }) {
   const [addressInput, setAddressInput] = useState('');
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -152,6 +153,16 @@ export default function LocationRiskCheck({
             </div>
 
             <div className="flex items-center gap-2">
+              {onViewOnMap && (
+                <button
+                  type="button"
+                  onClick={onViewOnMap}
+                  className="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded text-xs font-bold font-mono transition-all flex items-center gap-1.5 shadow-md active:scale-95"
+                >
+                  <Navigation className="w-3.5 h-3.5" />
+                  <span>View On Map</span>
+                </button>
+              )}
               <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-extrabold tracking-wider border ${cfg.badgeBg} ${cfg.textColor} ${cfg.borderColor}`}>
                 {locationResult.risk_level === 'CRITICAL' && <AlertOctagon className="w-4 h-4 text-red-400 animate-pulse" />}
                 {locationResult.risk_level === 'WARNING' && <AlertTriangle className="w-4 h-4 text-orange-400" />}
@@ -160,7 +171,7 @@ export default function LocationRiskCheck({
                 <span>{locationResult.risk_level} HAZARD</span>
               </span>
               {onClearResult && (
-                <button onClick={onClearResult} className="p-1 text-slate-400 hover:text-white rounded">
+                <button onClick={onClearResult} className="p-1 text-slate-400 hover:text-white rounded" title="Clear Search">
                   <X className="w-4 h-4" />
                 </button>
               )}

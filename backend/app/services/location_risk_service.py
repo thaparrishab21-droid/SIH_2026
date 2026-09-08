@@ -15,23 +15,61 @@ from backend.app.services.rainfall_data_service import get_real_rainfall_data
 
 logger = logging.getLogger("location_risk_service")
 
+KNOWN_LOCATIONS: Dict[str, Tuple[float, float, str]] = {
+    "kedarnath": (30.7352, 79.0669, "Kedarnath Town, Rudraprayag, Uttarakhand"),
+    "badrinath": (30.7433, 79.4938, "Badrinath Temple Area, Chamoli, Uttarakhand"),
+    "joshimath": (30.5557, 79.5663, "Joshimath Urban Ward, Chamoli, Uttarakhand"),
+    "rudraprayag": (30.2844, 78.9811, "Rudraprayag Town, Uttarakhand"),
+    "chamoli": (30.4042, 79.3306, "Chamoli Gopeshwar, Uttarakhand"),
+    "karnaprayag": (30.2584, 79.2155, "Karnaprayag Sangam Ward, Chamoli, Uttarakhand"),
+    "mandi": (31.7087, 76.9320, "Mandi Town, Himachal Pradesh"),
+    "shimla": (31.1048, 77.1734, "Shimla, Himachal Pradesh"),
+    "manali": (32.2432, 77.1892, "Manali, Himachal Pradesh"),
+    "dharamshala": (32.2190, 76.3234, "Dharamshala, Himachal Pradesh"),
+    "dehradun": (30.3165, 78.0322, "Dehradun City, Uttarakhand"),
+    "haridwar": (29.9457, 78.1642, "Haridwar, Uttarakhand"),
+    "rishikesh": (30.0869, 78.2676, "Rishikesh, Uttarakhand"),
+    "nainital": (29.3803, 79.4636, "Nainital Lake Area, Uttarakhand"),
+    "mussoorie": (30.4598, 78.0644, "Mussoorie Hill Station, Uttarakhand"),
+    "mussorie": (30.4598, 78.0644, "Mussoorie Hill Station, Uttarakhand"),
+    "uttarkashi": (30.7268, 78.4432, "Uttarkashi Town, Uttarakhand"),
+    "pithoragarh": (29.5829, 80.2182, "Pithoragarh, Uttarakhand"),
+    "almora": (29.5971, 79.6591, "Almora Town, Uttarakhand"),
+    "ranikhet": (29.6434, 79.4322, "Ranikhet Cantonment, Uttarakhand"),
+    "tehri": (30.3753, 78.4803, "New Tehri Dam Area, Uttarakhand"),
+    "guptkashi": (30.5231, 79.0772, "Guptkashi, Rudraprayag, Uttarakhand"),
+    "sonprayag": (30.6311, 79.0062, "Sonprayag Base Camp, Uttarakhand"),
+    "ukhimath": (30.5167, 79.0833, "Ukhimath Town, Uttarakhand"),
+    "tilwara": (30.3510, 78.9750, "Tilwara Bypass Ward, Rudraprayag, Uttarakhand"),
+    "agastyamuni": (30.3930, 79.0300, "Agastyamuni Market Ward, Uttarakhand"),
+    "chandigarh": (30.7333, 76.7794, "Chandigarh, UT, India"),
+    "delhi": (28.6139, 77.2090, "New Delhi, India"),
+}
+
 def geocode_address(address: str) -> Tuple[float, float, str]:
     """
-    Geocodes an address string to (latitude, longitude, display_name) using OpenStreetMap's Nominatim API.
-    Biased towards Uttarakhand / Northern India hill region.
+    Geocodes an address string to (latitude, longitude, display_name).
+    Uses fast local dictionary lookup for hill towns first, falling back to OSM Nominatim API.
     """
     clean_addr = address.strip()
     if not clean_addr:
         raise HTTPException(status_code=400, detail="Address string cannot be empty.")
 
+    query_lower = clean_addr.lower()
+
+    # 1. Fast Local Dictionary Match
+    for name_key, (lat_val, lon_val, display_str) in KNOWN_LOCATIONS.items():
+        if name_key == query_lower or name_key in query_lower:
+            logger.info(f"Geocoding matched local dictionary key '{name_key}' for query '{clean_addr}'")
+            return lat_val, lon_val, display_str
+
+    # 2. Remote Nominatim Search
     def query_nominatim(query_str: str) -> Optional[Dict[str, Any]]:
         params = {
             "q": query_str,
             "format": "json",
             "limit": 1,
-            "addressdetails": 1,
-            "viewbox": "77.5,31.5,81.1,28.5",
-            "bounded": 0
+            "addressdetails": 1
         }
         url = f"https://nominatim.openstreetmap.org/search?{urllib.parse.urlencode(params)}"
         req = urllib.request.Request(
@@ -50,27 +88,29 @@ def geocode_address(address: str) -> Tuple[float, float, str]:
 
     # First attempt: exact query
     result = query_nominatim(clean_addr)
-    
-    # Second attempt: append region if not already included
-    if not result and "uttarakhand" not in clean_addr.lower() and "india" not in clean_addr.lower():
+
+    # Second attempt: append region if not specified
+    if not result and "uttarakhand" not in query_lower and "india" not in query_lower:
         result = query_nominatim(f"{clean_addr}, Uttarakhand, India")
 
-    if not result:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Location '{address}' could not be geocoded. Please enter a valid place name in Uttarakhand or select a location directly on the map."
-        )
+    if result:
+        try:
+            lat = float(result["lat"])
+            lon = float(result["lon"])
+            display_name = result.get("display_name", clean_addr)
+            return lat, lon, display_name
+        except (KeyError, ValueError):
+            pass
 
-    try:
-        lat = float(result["lat"])
-        lon = float(result["lon"])
-        display_name = result.get("display_name", clean_addr)
-        return lat, lon, display_name
-    except (KeyError, ValueError):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid coordinate data received for '{address}'."
-        )
+    # 3. Fallback Partial Match against Local Dictionary
+    for name_key, (lat_val, lon_val, display_str) in KNOWN_LOCATIONS.items():
+        if any(token in name_key for token in query_lower.split() if len(token) > 3):
+            return lat_val, lon_val, display_str
+
+    raise HTTPException(
+        status_code=400,
+        detail=f"Location '{address}' could not be geocoded. Please enter a valid place name (e.g. Kedarnath, Mandi, Joshimath, Shimla) or tap directly on the map."
+    )
 
 def evaluate_location_risk(payload: LocationRiskInput, db: Session) -> Dict[str, Any]:
     """
