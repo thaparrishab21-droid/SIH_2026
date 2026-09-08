@@ -11,6 +11,7 @@ from backend.app.models.db_models import Ward, SensorReading
 from backend.app.schemas.api_schemas import LocationRiskInput, LocationRiskOut
 from backend.app.services.safe_zone_service import haversine_distance, get_nearest_safe_zone
 from backend.app.services.risk_engine import calculate_risk
+from backend.app.services.rainfall_data_service import get_real_rainfall_data
 
 logger = logging.getLogger("location_risk_service")
 
@@ -118,25 +119,54 @@ def evaluate_location_risk(payload: LocationRiskInput, db: Session) -> Dict[str,
     sz_info = get_nearest_safe_zone(lat, lon, db, nearest_ward.district)
 
     is_estimated = min_dist > 5.0
+    is_distant = min_dist > 50.0
+
+    # Fetch fallback rainfall baseline from nearest ward sensor reading (if nearby)
+    latest_reading = db.query(SensorReading).filter(
+        SensorReading.ward_id == nearest_ward.id
+    ).order_by(SensorReading.timestamp.desc()).first()
+
+    if is_distant:
+        # Locations > 50km from hill wards (e.g. Chandigarh, Delhi, plains): default fallback rainfall to mild clear baseline
+        fb_r1 = 0.0
+        fb_r24 = 0.0
+        fb_r72 = 5.0
+        sm_baseline = 30.0
+        slope_baseline = 3.0
+    else:
+        fb_r1 = getattr(latest_reading, "rainfall_1h_mm", 0.0) if latest_reading else 0.0
+        fb_r24 = getattr(latest_reading, "rainfall_24h_mm", 0.0) if latest_reading else 0.0
+        fb_r72 = getattr(latest_reading, "rainfall_72h_mm", 0.0) if latest_reading else 0.0
+        sm_baseline = getattr(latest_reading, "soil_moisture_pct", 30.0) if latest_reading else 30.0
+        slope_baseline = getattr(latest_reading, "slope_angle_deg", getattr(nearest_ward, "slope_angle_deg", 30.0)) if latest_reading else 30.0
+
+    # Ingest real rainfall data for this lat/lon (or fallback gracefully)
+    rainfall_info = get_real_rainfall_data(
+        lat=lat,
+        lon=lon,
+        fallback_r1=fb_r1,
+        fallback_r24=fb_r24,
+        fallback_r72=fb_r72
+    )
+
+    r1_final = rainfall_info["rainfall_1h_mm"]
+    r24_final = rainfall_info["rainfall_24h_mm"]
+    r72_final = rainfall_info["rainfall_72h_mm"]
+    sources_used = rainfall_info["sources_used"]
+    is_real = rainfall_info["is_real_data"]
 
     if not is_estimated:
-        # Close to an existing ward (within 5km): use real current sensor readings directly
-        latest_reading = db.query(SensorReading).filter(
-            SensorReading.ward_id == nearest_ward.id
-        ).order_by(SensorReading.timestamp.desc()).first()
+        # Close to an existing ward (within 5km): use ward's soil moisture & slope
+        class CombinedReading:
+            rainfall_1h_mm = r1_final
+            rainfall_24h_mm = r24_final
+            rainfall_72h_mm = r72_final
+            soil_moisture_pct = sm_baseline
+            slope_angle_deg = slope_baseline
 
-        if not latest_reading:
-            class DefaultReading:
-                rainfall_1h_mm = 0.0
-                rainfall_24h_mm = 0.0
-                rainfall_72h_mm = 0.0
-                soil_moisture_pct = 30.0
-                slope_angle_deg = getattr(nearest_ward, "slope_angle_deg", 30.0)
-            latest_reading = DefaultReading()
-
-        risk_res = calculate_risk(latest_reading, nearest_ward)
+        risk_res = calculate_risk(CombinedReading(), nearest_ward)
     else:
-        # No ward is nearby (> 5km): interpolate using nearest 3 wards' readings (Inverse Distance Weighting)
+        # No ward is nearby (> 5km): interpolate soil moisture, slope & soil props using nearest 3 wards (IDW)
         top_k = ward_distances[:min(3, len(ward_distances))]
         
         weights = []
@@ -165,19 +195,23 @@ def evaluate_location_risk(payload: LocationRiskInput, db: Session) -> Dict[str,
         if sum_w <= 0:
             sum_w = 1.0
 
-        r1_interp = sum(w * rw[0].rainfall_1h_mm for w, rw in zip(weights, readings_and_wards)) / sum_w
-        r24_interp = sum(w * rw[0].rainfall_24h_mm for w, rw in zip(weights, readings_and_wards)) / sum_w
-        r72_interp = sum(w * rw[0].rainfall_72h_mm for w, rw in zip(weights, readings_and_wards)) / sum_w
         sm_interp = sum(w * rw[0].soil_moisture_pct for w, rw in zip(weights, readings_and_wards)) / sum_w
-        slope_interp = sum(w * getattr(rw[0], "slope_angle_deg", 30.0) for w, rw in zip(weights, readings_and_wards)) / sum_w
         c_interp = sum(w * getattr(rw[1], "soil_cohesion_kpa", 12.0) for w, rw in zip(weights, readings_and_wards)) / sum_w
         phi_interp = sum(w * getattr(rw[1], "soil_friction_angle_deg", 30.0) for w, rw in zip(weights, readings_and_wards)) / sum_w
         gamma_interp = sum(w * getattr(rw[1], "soil_unit_weight_kn_m3", 19.0) for w, rw in zip(weights, readings_and_wards)) / sum_w
 
+        if is_distant:
+            # Locations > 50km away (plains / distant cities like Chandigarh): slope is flat (3°)
+            slope_interp = 3.0
+            sm_interp = min(sm_interp, 45.0)
+        else:
+            slope_interp = sum(w * getattr(rw[0], "slope_angle_deg", 30.0) for w, rw in zip(weights, readings_and_wards)) / sum_w
+
+
         class InterpReading:
-            rainfall_1h_mm = r1_interp
-            rainfall_24h_mm = r24_interp
-            rainfall_72h_mm = r72_interp
+            rainfall_1h_mm = r1_final
+            rainfall_24h_mm = r24_final
+            rainfall_72h_mm = r72_final
             soil_moisture_pct = sm_interp
             slope_angle_deg = slope_interp
 
@@ -195,8 +229,18 @@ def evaluate_location_risk(payload: LocationRiskInput, db: Session) -> Dict[str,
 
         # Prepend explicit estimated note
         risk_res["contributing_factors"] = [
-            "Estimated — no direct sensor coverage at this location (interpolated from 3 nearest sensor stations)."
+            "Estimated — no direct sensor coverage at this location (soil/slope interpolated from 3 nearest sensor stations)."
         ] + risk_res["contributing_factors"]
+
+    # Prepend clear data source provenance log to contributing factors
+    provenance_notes = []
+    if is_real:
+        provenance_notes.append(f"Rainfall Data: Real near-real-time / forecast sources used ({', '.join(sources_used)})")
+    else:
+        provenance_notes.append("Rainfall Data: Simulated fallback (APIs unconfigured or offline)")
+    provenance_notes.append("Soil Moisture & Slope: Simulated from ward baseline (ground soil sensor network unavailable)")
+
+    risk_res["contributing_factors"] = provenance_notes + risk_res["contributing_factors"]
 
     danger_factor = float(risk_res["risk_score"])
     fos = risk_res.get("factor_of_safety")
@@ -214,5 +258,8 @@ def evaluate_location_risk(payload: LocationRiskInput, db: Session) -> Dict[str,
         "distance_to_nearest_ward_km": round(min_dist, 1),
         "contributing_factors": risk_res["contributing_factors"],
         "is_estimated": is_estimated,
-        "nearest_safe_zone": sz_info
+        "nearest_safe_zone": sz_info,
+        "rainfall_data_sources": sources_used,
+        "is_rainfall_real": is_real
     }
+

@@ -280,4 +280,6 @@ class LocationRiskOut(BaseModel):
     contributing_factors: List[str]
     is_estimated: bool
     nearest_safe_zone: Optional[dict] = None
+    rainfall_data_sources: Optional[List[str]] = Field(default=None, description="Rainfall data sources used (e.g. GPM IMERG, GSMaP, GFS, or Simulated)")
+    is_rainfall_real: bool = Field(default=False, description="True if precipitation data is real-data-backed, False if simulated fallback")
 

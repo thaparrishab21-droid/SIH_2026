@@ -263,6 +263,39 @@ def run_tests():
     assert res_invalid.status_code == 400
     print("[OK] Invalid Location Input Gracefully Handled (400 Bad Request)")
 
+    print("\n--- 11. Testing Real Rainfall Data & Calibrated Location Risk Variation ---")
+    locations = [
+        {"name": "Dehradun Foothills", "lat": 30.3165, "lon": 78.0322},
+        {"name": "Kedarnath Dham", "lat": 30.7346, "lon": 79.0669},
+        {"name": "Pithoragarh Border District", "lat": 29.5829, "lon": 80.2182},
+        {"name": "Chamoli / Joshimath", "lat": 30.5526, "lon": 79.5642},
+    ]
+
+    danger_factors = []
+    for loc in locations:
+        res_loc = client.post("/location-risk", json={"latitude": loc["lat"], "longitude": loc["lon"]})
+        assert res_loc.status_code == 200, f"Location risk check failed for {loc['name']}: {res_loc.text}"
+        loc_data = res_loc.json()
+        df_val = loc_data["danger_factor"]
+        danger_factors.append(df_val)
+        
+        # Verify provenance logs in contributing factors
+        factors = loc_data["contributing_factors"]
+        assert any("Rainfall Data:" in f for f in factors), "Missing Rainfall Data provenance note"
+        assert any("Soil Moisture" in f for f in factors), "Missing Soil Moisture synthetic distinction note"
+        
+        print(f"  [Location Risk] {loc['name']} ({loc['lat']}, {loc['lon']}) -> Danger Factor: {df_val:.1f}% | Risk Level: {loc_data['risk_level']} | Sources: {loc_data.get('rainfall_data_sources')}")
+
+    # Verification Asserts:
+    # 1. Scores must NOT all be identical
+    assert len(set(danger_factors)) > 1, f"Danger factors must show variation across locations! Got: {danger_factors}"
+    # 2. Scores must NOT all be clustered near 100.0 (overconfidence fix check)
+    assert not all(df >= 97.0 for df in danger_factors), f"Danger factors are all extreme >97.0! Calibration failed. Got: {danger_factors}"
+    # 3. Scores must NOT all be clustered near 0.0
+    assert not all(df <= 3.0 for df in danger_factors), f"Danger factors are all extreme <3.0! Calibration failed. Got: {danger_factors}"
+    
+    spread = max(danger_factors) - min(danger_factors)
+    print(f"[OK] Calibrated Risk Variation Verified across Uttarakhand locations (Min: {min(danger_factors):.1f}%, Max: {max(danger_factors):.1f}%, Spread: {spread:.1f}%). No extreme 100% clustering.")
 
     print("\n==========================================")
     print("ALL API & RBAC TESTS PASSED SUCCESSFULLY!")
@@ -270,4 +303,5 @@ def run_tests():
 
 if __name__ == "__main__":
     run_tests()
+
 

@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     # Simulation / Risk Background Job Interval (seconds)
     SIMULATION_INTERVAL_SECONDS: int = 60
     
+    # Real Rainfall Credentials
+    EARTHDATA_USERNAME: Optional[str] = None
+    EARTHDATA_PASSWORD: Optional[str] = None
+    JAXA_USERNAME: Optional[str] = None
+    JAXA_PASSWORD: Optional[str] = None
+    
     # CORS Origins
     CORS_ORIGINS: list[str] = [
         "http://localhost:5173",

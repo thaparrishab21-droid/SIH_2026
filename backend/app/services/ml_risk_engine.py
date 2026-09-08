@@ -66,6 +66,14 @@ def predict_risk_ml(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
     }])[feature_names]
 
     prob = float(model.predict_proba(input_df)[0, 1])
+    
+    # Sanity-check warning flag for extreme probability outputs
+    if prob > 0.97 or prob < 0.03:
+        logger.warning(
+            f"Sanity check flag: Extreme predicted probability ({prob:.4f}) detected! "
+            f"Input features: r1={r1:.1f}mm, r24={r24:.1f}mm, r72={r72:.1f}mm, sm={sm:.1f}%, slope={slope:.1f}°."
+        )
+
     risk_score = round(prob * 100.0, 1)
 
     if prob >= 0.75:
