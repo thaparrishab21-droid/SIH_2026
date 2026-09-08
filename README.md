@@ -1,6 +1,6 @@
-# ⛰️ Flood-Flash: Landslide & Flash-Flood Early Warning & Post-Disaster Relief System (v2.0)
+# ⛰️ PREDICT FLOW: Landslide & Flash-Flood Early Warning & Post-Disaster Relief System (v2.0)
 
-**Flood-Flash** is an integrated, hyper-local disaster management platform designed for hilly terrain wards (focused on Uttarakhand river valleys like Rudraprayag, Chamoli, and Nainital). It combines **pre-disaster hazard prediction & real-time monitoring** with a dedicated **post-disaster relief & community support coordination portal**.
+**PREDICT FLOW** is an integrated, hyper-local disaster management platform designed for hilly terrain wards (focused on Uttarakhand river valleys like Rudraprayag, Chamoli, and Nainital). It combines **pre-disaster hazard prediction & real-time monitoring** with a dedicated **post-disaster relief & community support coordination portal**.
 
 ---
 

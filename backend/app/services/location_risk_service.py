@@ -43,7 +43,11 @@ KNOWN_LOCATIONS: Dict[str, Tuple[float, float, str]] = {
     "tilwara": (30.3510, 78.9750, "Tilwara Bypass Ward, Rudraprayag, Uttarakhand"),
     "agastyamuni": (30.3930, 79.0300, "Agastyamuni Market Ward, Uttarakhand"),
     "chandigarh": (30.7333, 76.7794, "Chandigarh, UT, India"),
+    "mohali": (30.7046, 76.7179, "Mohali, Punjab, India"),
+    "panchkula": (30.6942, 76.8606, "Panchkula, Haryana, India"),
     "delhi": (28.6139, 77.2090, "New Delhi, India"),
+    "ambala": (30.3782, 76.7767, "Ambala Cantt, Haryana, India"),
+    "ludhiana": (30.9010, 75.8573, "Ludhiana, Punjab, India"),
 }
 
 def geocode_address(address: str) -> Tuple[float, float, str]:
@@ -91,7 +95,7 @@ def geocode_address(address: str) -> Tuple[float, float, str]:
 
     # Second attempt: append region if not specified
     if not result and "uttarakhand" not in query_lower and "india" not in query_lower:
-        result = query_nominatim(f"{clean_addr}, Uttarakhand, India")
+        result = query_nominatim(f"{clean_addr}, India")
 
     if result:
         try:
@@ -109,7 +113,7 @@ def geocode_address(address: str) -> Tuple[float, float, str]:
 
     raise HTTPException(
         status_code=400,
-        detail=f"Location '{address}' could not be geocoded. Please enter a valid place name (e.g. Kedarnath, Mandi, Joshimath, Shimla) or tap directly on the map."
+        detail=f"Location '{address}' could not be geocoded. Please enter a valid place name (e.g. Kedarnath, Mandi, Joshimath, Shimla, Chandigarh) or tap directly on the map."
     )
 
 KNOWN_TERRAIN_PROFILES: Dict[str, Dict[str, float]] = {
@@ -138,14 +142,34 @@ KNOWN_TERRAIN_PROFILES: Dict[str, Dict[str, float]] = {
     "sonprayag": {"slope": 39.0, "sm": 72.0, "r1": 22.0, "r24": 98.0, "r72": 165.0, "cohesion": 17.0, "friction": 34.0, "incidents": 4},
     "ukhimath": {"slope": 36.0, "sm": 66.0, "r1": 16.0, "r24": 74.0, "r72": 120.0, "cohesion": 15.0, "friction": 33.0, "incidents": 3},
     "chandigarh": {"slope": 4.0, "sm": 30.0, "r1": 0.0, "r24": 2.0, "r72": 8.0, "cohesion": 8.0, "friction": 24.0, "incidents": 0},
+    "mohali": {"slope": 4.0, "sm": 30.0, "r1": 0.0, "r24": 2.0, "r72": 8.0, "cohesion": 8.0, "friction": 24.0, "incidents": 0},
+    "panchkula": {"slope": 6.0, "sm": 32.0, "r1": 0.0, "r24": 3.0, "r72": 10.0, "cohesion": 9.0, "friction": 25.0, "incidents": 0},
     "delhi": {"slope": 2.0, "sm": 25.0, "r1": 0.0, "r24": 0.0, "r72": 4.0, "cohesion": 6.0, "friction": 22.0, "incidents": 0},
+    "ambala": {"slope": 3.0, "sm": 28.0, "r1": 0.0, "r24": 2.0, "r72": 6.0, "cohesion": 7.0, "friction": 23.0, "incidents": 0},
+    "ludhiana": {"slope": 3.0, "sm": 28.0, "r1": 0.0, "r24": 2.0, "r72": 6.0, "cohesion": 7.0, "friction": 23.0, "incidents": 0},
 }
+
+def is_himalayan_mountain_zone(lat: float, lon: float) -> bool:
+    """
+    Returns True if coordinates lie within the steep Himalayan mountain / hill region
+    (Upper Uttarakhand & High Himachal hill districts).
+    Plains (Chandigarh, Punjab, Haryana, Delhi NCR, Haridwar/Tarai plains) return False.
+    """
+    if lon < 77.4:
+        if lat > 31.0 and lon > 76.2:
+            return True
+        return False
+    if lat < 29.4:
+        return False
+    if (29.4 <= lat <= 32.5) and (77.4 <= lon <= 81.5):
+        return True
+    return False
 
 def evaluate_location_risk(payload: LocationRiskInput, db: Session) -> Dict[str, Any]:
     """
     Computes danger factor, safety factor, risk level, nearest ward, and safe zone
     for an arbitrary location (via address or lat/lng).
-    Dynamic terrain profiling & IDW interpolation ensures accurate hazard scoring across all locations.
+    Dynamic geography-aware terrain profiling & IDW interpolation ensures accurate hazard scoring across all locations.
     """
     lat: Optional[float] = payload.latitude
     lon: Optional[float] = payload.longitude
@@ -189,7 +213,7 @@ def evaluate_location_risk(payload: LocationRiskInput, db: Session) -> Dict[str,
 
     is_estimated = min_dist > 5.0
 
-    # 1. Check matching terrain profile from KNOWN_TERRAIN_PROFILES
+    # 1. Check matching terrain profile from KNOWN_TERRAIN_PROFILES by address string
     query_lower = (payload.address or location_name).lower()
     matched_profile = None
 
@@ -198,7 +222,19 @@ def evaluate_location_risk(payload: LocationRiskInput, db: Session) -> Dict[str,
             matched_profile = profile
             break
 
-    # 2. Determine base fallback values
+    # 2. Check matching terrain profile by coordinate proximity (<= 25 km)
+    if not matched_profile and lat is not None and lon is not None:
+        for key, (k_lat, k_lon, k_disp) in KNOWN_LOCATIONS.items():
+            dist_to_known = haversine_distance(lat, lon, k_lat, k_lon)
+            if dist_to_known <= 25.0:
+                matched_profile = KNOWN_TERRAIN_PROFILES.get(key)
+                if matched_profile:
+                    logger.info(f"Matched terrain profile '{key}' by coordinate proximity ({dist_to_known:.1f} km)")
+                    break
+
+    is_mountain = is_himalayan_mountain_zone(lat, lon)
+
+    # 3. Determine base fallback values
     latest_reading = db.query(SensorReading).filter(
         SensorReading.ward_id == nearest_ward.id
     ).order_by(SensorReading.timestamp.desc()).first()
@@ -210,19 +246,16 @@ def evaluate_location_risk(payload: LocationRiskInput, db: Session) -> Dict[str,
         sm_baseline = matched_profile["sm"]
         slope_baseline = matched_profile["slope"]
     else:
-        # Dynamic terrain slope estimation based on latitude/longitude
-        is_mountain_region = (28.5 <= lat <= 35.5) and (74.0 <= lon <= 82.5)
-        if is_mountain_region:
-            # Estimate slope for Himalayan hill region (26° - 38°)
+        if is_mountain:
             slope_baseline = float(getattr(nearest_ward, "slope_angle_deg", 32.0))
             sm_baseline = float(getattr(latest_reading, "soil_moisture_pct", 58.0)) if latest_reading else 58.0
             fb_r1 = getattr(latest_reading, "rainfall_1h_mm", 12.0) if latest_reading else 12.0
             fb_r24 = getattr(latest_reading, "rainfall_24h_mm", 55.0) if latest_reading else 55.0
             fb_r72 = getattr(latest_reading, "rainfall_72h_mm", 95.0) if latest_reading else 95.0
         else:
-            # Plains (flat slope 3° - 6°)
+            # Plains (flat slope 2° - 5°, dry baseline)
             slope_baseline = 4.0
-            sm_baseline = 30.0
+            sm_baseline = 25.0
             fb_r1 = 0.0
             fb_r24 = 2.0
             fb_r72 = 8.0
@@ -288,18 +321,23 @@ def evaluate_location_risk(payload: LocationRiskInput, db: Session) -> Dict[str,
             c_interp = matched_profile["cohesion"]
             phi_interp = matched_profile["friction"]
             gamma_interp = 19.0
+            incidents_count = matched_profile.get("incidents", 0)
         else:
-            sm_interp = sum(w * rw[0].soil_moisture_pct for w, rw in zip(weights, readings_and_wards)) / sum_w
-            c_interp = sum(w * getattr(rw[1], "soil_cohesion_kpa", 14.0) for w, rw in zip(weights, readings_and_wards)) / sum_w
-            phi_interp = sum(w * getattr(rw[1], "soil_friction_angle_deg", 31.0) for w, rw in zip(weights, readings_and_wards)) / sum_w
-            gamma_interp = sum(w * getattr(rw[1], "soil_unit_weight_kn_m3", 19.0) for w, rw in zip(weights, readings_and_wards)) / sum_w
-            
-            is_mountain_region = (28.5 <= lat <= 35.5) and (74.0 <= lon <= 82.5)
-            if is_mountain_region:
+            if is_mountain:
+                sm_interp = sum(w * rw[0].soil_moisture_pct for w, rw in zip(weights, readings_and_wards)) / sum_w
+                c_interp = sum(w * getattr(rw[1], "soil_cohesion_kpa", 14.0) for w, rw in zip(weights, readings_and_wards)) / sum_w
+                phi_interp = sum(w * getattr(rw[1], "soil_friction_angle_deg", 31.0) for w, rw in zip(weights, readings_and_wards)) / sum_w
+                gamma_interp = sum(w * getattr(rw[1], "soil_unit_weight_kn_m3", 19.0) for w, rw in zip(weights, readings_and_wards)) / sum_w
                 slope_interp = sum(w * getattr(rw[0], "slope_angle_deg", 32.0) for w, rw in zip(weights, readings_and_wards)) / sum_w
+                incidents_count = 2
             else:
+                # Flat plain territory: DO NOT interpolate steep mountain slope or saturation from distant hill wards!
                 slope_interp = 4.0
-                sm_interp = min(sm_interp, 40.0)
+                sm_interp = 25.0
+                c_interp = 8.0
+                phi_interp = 24.0
+                gamma_interp = 18.0
+                incidents_count = 0
 
         class InterpReading:
             rainfall_1h_mm = r1_final
@@ -317,21 +355,22 @@ def evaluate_location_risk(payload: LocationRiskInput, db: Session) -> Dict[str,
             soil_friction_angle_deg = phi_interp
             soil_unit_weight_kn_m3 = gamma_interp
             slope_angle_deg = slope_interp
-            historical_incident_count = matched_profile["incidents"] if matched_profile else 2
+            historical_incident_count = incidents_count
 
         risk_res = calculate_risk(InterpReading(), InterpWard())
 
-        # Prepend explicit estimated note
+        # Prepend explicit estimated note (must include 'Estimated' keyword for tests & clear UI feedback)
         risk_res["contributing_factors"] = [
-            f"Terrain Profile: {location_name} (Slope: {slope_interp:.1f}°, Soil Saturation: {sm_interp:.1f}%)"
+            f"Estimated — no direct sensor coverage at this location, interpolated from {min(3, len(ward_distances))} nearest wards",
+            f"Terrain Profile: {location_name} (Slope: {slope_interp:.1f}°, Soil Moisture Saturation: {sm_interp:.1f}%)"
         ] + risk_res["contributing_factors"]
 
     # Prepend clear data source provenance log to contributing factors
     provenance_notes = []
     if is_real:
-        provenance_notes.append(f"Rainfall Source: Real near-real-time / forecast API ({', '.join(sources_used)})")
+        provenance_notes.append(f"Rainfall Data: Real near-real-time / forecast API ({', '.join(sources_used)})")
     else:
-        provenance_notes.append("Rainfall Source: Regional weather station baseline")
+        provenance_notes.append("Rainfall Data: Regional weather station baseline")
 
     risk_res["contributing_factors"] = provenance_notes + risk_res["contributing_factors"]
 

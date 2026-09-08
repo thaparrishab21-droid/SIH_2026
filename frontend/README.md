@@ -1,4 +1,4 @@
-# 🌊 Flood-Flash Frontend Dashboard
+# 🌊 PREDICT FLOW Frontend Dashboard
 
 A disaster management dashboard for officials monitoring landslide and flash-flood risk across hilly wards in real time.
 

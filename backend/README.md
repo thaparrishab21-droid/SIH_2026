@@ -1,4 +1,4 @@
-# 🌊 Flood-Flash Backend API (v2.0 Modular Architecture)
+# 🌊 PREDICT FLOW Backend API (v2.0 Modular Architecture)
 
 A hyper-local landslide & flash-flood early warning system backend powering real-time risk monitoring across hilly terrain wards (Uttarakhand).
 

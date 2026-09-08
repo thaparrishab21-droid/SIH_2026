@@ -111,7 +111,7 @@ def predict_risk_ml(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
 
     val_map = {
         "rainfall_72h_mm": (r72, f"72h rainfall ({r72:.1f}mm)"),
-        "soil_moisture_pct": (sm, f"Soil moisture saturation ({sm:.1f}%)"),
+        "soil_moisture_pct": (sm, f"Soil Moisture saturation ({sm:.1f}%)"),
         "slope_angle_deg": (slope, f"Slope angle ({slope:.1f}°)"),
         "rainfall_1h_mm": (r1, f"Short-burst 1h rain ({r1:.1f}mm/h)"),
         "rainfall_24h_mm": (r24, f"24h rain ({r24:.1f}mm)"),
@@ -128,7 +128,7 @@ def predict_risk_ml(sensor_reading: Any, ward: Any) -> Dict[str, Any]:
     if r72 > 150:
         factors.append(f"72h cumulative rainfall ({r72:.1f}mm) exceeds high-hazard baseline")
     if sm > 65:
-        factors.append(f"Soil moisture ({sm:.1f}%) elevated above critical saturation point")
+        factors.append(f"Soil Moisture ({sm:.1f}%) elevated above critical saturation point")
     if slope >= 35:
         factors.append(f"Steep slope angle ({slope:.1f}°) amplifies runoff speed & debris slide probability")
 

@@ -1,4 +1,4 @@
-# 🤖 Model Card: Flood-Flash Landslide Risk Classifier
+# 🤖 Model Card: PREDICT FLOW Landslide Risk Classifier
 
 ## Model Overview
 - **Model Architecture**: Calibrated XGBoost Gradient Boosted Decision Tree Classifier (`CalibratedClassifierCV` + `xgboost.XGBClassifier`) with Sigmoid / Platt scaling probability calibration.
