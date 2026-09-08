@@ -111,6 +111,13 @@ export default function MapView({
       });
 
       mapInstanceRef.current = map;
+
+      // Invalidate size shortly after creation to handle settled container dimensions
+      setTimeout(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      }, 100);
     }
 
     return () => {
@@ -120,7 +127,7 @@ export default function MapView({
         mapInstanceRef.current = null;
       }
     };
-  }, [viewMode, onMapClickLocation]);
+  }, [viewMode, onMapClickLocation, isLoading]);
 
 
   // 2. Base Tile Layer Handler (OSM vs OpenTopoMap Topo Contours)
@@ -152,7 +159,7 @@ export default function MapView({
 
     newTileLayer.addTo(map);
     tileLayerRef.current = newTileLayer;
-  }, [baseTileType, showContours, viewMode]);
+  }, [baseTileType, showContours, viewMode, isLoading]);
 
   // 3. Render District Boundaries GeoJSON Overlay
   useEffect(() => {
@@ -183,7 +190,7 @@ export default function MapView({
       });
       districtsLayerRef.current.addLayer(districtsLayer);
     }
-  }, [showDistricts, viewMode]);
+  }, [showDistricts, viewMode, isLoading]);
 
   // 4. Render Rivers GeoJSON Vector Overlay
   useEffect(() => {
@@ -211,7 +218,7 @@ export default function MapView({
       });
       riversLayerRef.current.addLayer(riversLayer);
     }
-  }, [showRivers, viewMode]);
+  }, [showRivers, viewMode, isLoading]);
 
   // 5. Render Risk Heatmap Layer (leaflet.heat)
   useEffect(() => {
@@ -255,7 +262,7 @@ export default function MapView({
         }).addTo(map);
       }
     }
-  }, [showHeatmap, filteredWards, queriedLocation, viewMode]);
+  }, [showHeatmap, filteredWards, queriedLocation, viewMode, isLoading]);
 
   // 5b. Render User-Queried Location Distinct Marker & Fly To
   useEffect(() => {
@@ -314,7 +321,7 @@ export default function MapView({
 
       queriedLayerGroupRef.current.addLayer(polyline);
     }
-  }, [queriedLocation, viewMode]);
+  }, [queriedLocation, viewMode, isLoading]);
 
 
   // 6. Render Safe Zone Evacuation Markers
@@ -347,7 +354,7 @@ export default function MapView({
         safeZonesLayerGroupRef.current.addLayer(marker);
       });
     }
-  }, [showSafeZones, safeZones, viewMode]);
+  }, [showSafeZones, safeZones, viewMode, isLoading]);
 
   // 7. Render Ward Risk Markers & Selected Evacuation Route Polyline
   useEffect(() => {
@@ -421,7 +428,7 @@ export default function MapView({
         );
       }
     }
-  }, [filteredWards, selectedWard, safeZones, onSelectWard, viewMode]);
+  }, [filteredWards, selectedWard, safeZones, onSelectWard, viewMode, isLoading]);
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-[#0b1120] relative overflow-hidden">
