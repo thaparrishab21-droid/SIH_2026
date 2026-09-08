@@ -126,29 +126,29 @@ export default function LocationRiskCheck({
         </div>
       )}
 
-      {/* Result Card Display */}
+      {/* Result Card Display (100% Light Mode) */}
       {locationResult && (
-        <div className="bg-slate-900 border-2 border-slate-800 text-white rounded-xl p-5 space-y-5 animate-in fade-in slide-in-from-bottom-3 shadow-xl">
+        <div className="bg-white border-2 border-slate-200 text-slate-900 rounded-xl p-5 sm:p-6 space-y-5 animate-fade-in shadow-md">
           
           {/* Top Result Title Bar */}
-          <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-slate-800">
+          <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-slate-200">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-base font-extrabold text-white">
+                <span className="text-base sm:text-lg font-black text-slate-900">
                   📍 {locationResult.location_name}
                 </span>
                 {locationResult.is_estimated ? (
-                  <span className="px-2.5 py-0.5 bg-amber-500/20 border border-amber-500/50 text-amber-300 font-mono text-[10px] font-bold rounded-full">
+                  <span className="px-2.5 py-0.5 bg-amber-50 border border-amber-300 text-amber-800 font-mono text-[10px] font-bold rounded-full">
                     ⚠️ Estimated — Nearby Sensors
                   </span>
                 ) : (
-                  <span className="px-2.5 py-0.5 bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-mono text-[10px] font-bold rounded-full">
+                  <span className="px-2.5 py-0.5 bg-emerald-50 border border-emerald-300 text-emerald-800 font-mono text-[10px] font-bold rounded-full">
                     📡 Direct Station Coverage
                   </span>
                 )}
               </div>
-              <p className="text-xs font-mono text-slate-400 mt-1">
-                Coordinates: {locationResult.latitude}° N, {locationResult.longitude}° E • Nearest Ward: <strong className="text-slate-200">{locationResult.nearest_ward_name}</strong> ({locationResult.distance_to_nearest_ward_km} km away)
+              <p className="text-xs font-mono text-slate-500 mt-1">
+                Coordinates: {locationResult.latitude}° N, {locationResult.longitude}° E • Nearest Ward: <strong className="text-slate-800">{locationResult.nearest_ward_name}</strong> ({locationResult.distance_to_nearest_ward_km} km away)
               </p>
             </div>
 
@@ -157,21 +157,21 @@ export default function LocationRiskCheck({
                 <button
                   type="button"
                   onClick={onViewOnMap}
-                  className="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded text-xs font-bold font-mono transition-all flex items-center gap-1.5 shadow-md active:scale-95"
+                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold font-sans transition-all flex items-center gap-1.5 shadow-xs active:scale-95"
                 >
                   <Navigation className="w-3.5 h-3.5" />
                   <span>View On Map</span>
                 </button>
               )}
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-extrabold tracking-wider border ${cfg.badgeBg} ${cfg.textColor} ${cfg.borderColor}`}>
-                {locationResult.risk_level === 'CRITICAL' && <AlertOctagon className="w-4 h-4 text-red-400 animate-pulse" />}
-                {locationResult.risk_level === 'WARNING' && <AlertTriangle className="w-4 h-4 text-orange-400" />}
-                {locationResult.risk_level === 'WATCH' && <Eye className="w-4 h-4 text-amber-400" />}
-                {locationResult.risk_level === 'SAFE' && <Shield className="w-4 h-4 text-emerald-400" />}
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black tracking-wider border ${cfg.badgeBg} ${cfg.textColor} ${cfg.borderColor}`}>
+                {locationResult.risk_level === 'CRITICAL' && <AlertOctagon className="w-4 h-4 text-red-600 animate-pulse" />}
+                {locationResult.risk_level === 'WARNING' && <AlertTriangle className="w-4 h-4 text-orange-600" />}
+                {locationResult.risk_level === 'WATCH' && <Eye className="w-4 h-4 text-amber-600" />}
+                {locationResult.risk_level === 'SAFE' && <Shield className="w-4 h-4 text-emerald-600" />}
                 <span>{locationResult.risk_level} HAZARD</span>
               </span>
               {onClearResult && (
-                <button onClick={onClearResult} className="p-1 text-slate-400 hover:text-white rounded" title="Clear Search">
+                <button onClick={onClearResult} className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-all" title="Clear Search">
                   <X className="w-4 h-4" />
                 </button>
               )}
@@ -182,40 +182,40 @@ export default function LocationRiskCheck({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             
             {/* Readout 1: Danger Factor */}
-            <div className="bg-slate-950/80 border border-slate-800 p-4 rounded-lg space-y-2">
-              <div className="flex items-center justify-between text-xs font-mono text-slate-400">
-                <span>DANGER FACTOR (0-100)</span>
-                <span className={`font-bold ${cfg.textColor}`}>{locationResult.danger_factor} / 100</span>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2">
+              <div className="flex items-center justify-between text-xs font-mono text-slate-500">
+                <span className="font-bold">DANGER FACTOR (0-100)</span>
+                <span className={`font-black ${cfg.textColor}`}>{locationResult.danger_factor} / 100</span>
               </div>
               <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight" style={{ color: cfg.hex }}>
                 {locationResult.danger_factor}
-                <span className="text-xs text-slate-400 font-sans font-normal ml-1.5">Hazard Index</span>
+                <span className="text-xs text-slate-500 font-sans font-medium ml-2">Hazard Index</span>
               </div>
-              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
                 <div 
-                  className="h-full transition-all duration-700" 
+                  className="h-full transition-all duration-700 rounded-full" 
                   style={{ width: `${Math.min(100, Math.max(0, locationResult.danger_factor))}%`, backgroundColor: cfg.hex }}
                 />
               </div>
             </div>
 
             {/* Readout 2: Safety Factor / Factor of Safety (FoS) */}
-            <div className="bg-slate-950/80 border border-slate-800 p-4 rounded-lg space-y-2">
-              <div className="flex items-center justify-between text-xs font-mono text-slate-400">
-                <span>SAFETY FACTOR</span>
-                <span className="font-bold text-emerald-400">
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2">
+              <div className="flex items-center justify-between text-xs font-mono text-slate-500">
+                <span className="font-bold">SAFETY FACTOR</span>
+                <span className="font-black text-emerald-700">
                   {locationResult.factor_of_safety ? `FoS: ${locationResult.factor_of_safety}` : `${locationResult.safety_factor}%`}
                 </span>
               </div>
-              <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-emerald-400">
+              <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-emerald-600">
                 {locationResult.factor_of_safety ? locationResult.factor_of_safety.toFixed(2) : locationResult.safety_factor}
-                <span className="text-xs text-slate-400 font-sans font-normal ml-1.5">
+                <span className="text-xs text-slate-500 font-sans font-medium ml-2">
                   {locationResult.factor_of_safety ? (locationResult.factor_of_safety < 1.0 ? 'Unstable (FoS < 1.0)' : locationResult.factor_of_safety < 1.3 ? 'Marginal Stability' : 'Stable Slope') : 'Safety Margin'}
                 </span>
               </div>
-              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-emerald-500 transition-all duration-700" 
+                  className="h-full bg-emerald-500 transition-all duration-700 rounded-full" 
                   style={{ 
                     width: locationResult.factor_of_safety 
                       ? `${Math.min(100, (locationResult.factor_of_safety / 2.5) * 100)}%` 
@@ -229,24 +229,24 @@ export default function LocationRiskCheck({
 
           {/* Estimated Warning Note */}
           {locationResult.is_estimated && (
-            <div className="bg-amber-950/40 border border-amber-700/60 p-3 rounded-lg flex items-center gap-2 text-xs text-amber-200 font-mono">
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Estimated — based on nearby sensor data (inverse-distance weighted approximation from nearest 3 weather stations).</span>
+            <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-center gap-2 text-xs text-amber-900 font-mono">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Estimated — based on nearby sensor data (inverse-distance weighted approximation from nearest weather stations).</span>
             </div>
           )}
 
           {/* Lower Grid: Contributing Factors & Nearest Safe Zone */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
             
             {/* Contributing Factors List */}
-            <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-lg space-y-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono flex items-center gap-1.5">
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 font-mono flex items-center gap-1.5">
                 <span>🔍 Contributing Hazard Factors</span>
               </h4>
-              <ul className="space-y-1.5 text-xs text-slate-300">
+              <ul className="space-y-1.5 text-xs text-slate-700 font-medium">
                 {(locationResult.contributing_factors || []).map((factor, idx) => (
                   <li key={idx} className="flex items-start gap-2">
-                    <span className="text-slate-500 font-mono shrink-0">•</span>
+                    <span className="text-blue-600 font-mono font-bold shrink-0">•</span>
                     <span className="leading-snug">{factor}</span>
                   </li>
                 ))}
@@ -255,22 +255,22 @@ export default function LocationRiskCheck({
 
             {/* Nearest Safe Zone Card */}
             {locationResult.nearest_safe_zone && (
-              <div className="bg-emerald-950/40 border border-emerald-800/60 p-4 rounded-lg space-y-2.5">
+              <div className="bg-emerald-50/80 border border-emerald-200 p-4 rounded-xl space-y-2.5">
                 <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                  <span className="font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
                     <span>🛡️ Nearest Evacuation Safe Zone</span>
                   </span>
-                  <span className="px-2 py-0.5 bg-emerald-900/80 text-emerald-200 rounded font-bold">
+                  <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-md font-bold">
                     {locationResult.nearest_safe_zone.distance_km} km {locationResult.nearest_safe_zone.direction}
                   </span>
                 </div>
-                <h5 className="text-sm font-black text-white">
+                <h5 className="text-sm font-black text-slate-900">
                   {locationResult.nearest_safe_zone.name}
                 </h5>
-                <p className="text-xs text-emerald-200/90 leading-snug">
-                  Type: <strong className="text-white">{locationResult.nearest_safe_zone.safe_zone_type || 'Shelter'}</strong> • Capacity: <strong className="text-white">{locationResult.nearest_safe_zone.capacity?.toLocaleString('en-IN')} persons</strong> ({locationResult.nearest_safe_zone.district} District)
+                <p className="text-xs text-slate-600 leading-snug">
+                  Type: <strong className="text-slate-900">{locationResult.nearest_safe_zone.safe_zone_type || 'Shelter'}</strong> • Capacity: <strong className="text-slate-900">{locationResult.nearest_safe_zone.capacity?.toLocaleString('en-IN')} persons</strong> ({locationResult.nearest_safe_zone.district} District)
                 </p>
-                <div className="pt-1 text-[11px] font-mono text-emerald-400 flex items-center gap-1 font-bold">
+                <div className="pt-1 text-[11px] font-mono text-emerald-700 flex items-center gap-1 font-bold">
                   <span>Evacuation route displayed on map</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </div>
@@ -280,6 +280,7 @@ export default function LocationRiskCheck({
           </div>
         </div>
       )}
+
     </div>
   );
 }

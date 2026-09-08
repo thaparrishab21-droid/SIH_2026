@@ -143,7 +143,7 @@ export default function RequestDisasterHelpModal({ isOpen, type, onClose, onSubm
 
             <button
               type="submit"
-              className="w-full py-3 bg-slate-950 hover:bg-slate-800 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-2 transition-all shadow-xs"
+              className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-2 transition-all shadow-xs"
             >
               <span>Submit Priority Request Ticket</span>
               <ArrowRight className="w-4 h-4" />

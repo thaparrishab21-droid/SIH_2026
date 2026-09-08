@@ -120,7 +120,7 @@ export default function Header({
           ) : (
             <button
               onClick={onOpenLogin}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all shadow-xs"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-all shadow-xs"
             >
               <UserCheck className="w-3.5 h-3.5" />
               <span>Citizen Profile</span>

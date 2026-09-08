@@ -46,23 +46,26 @@ export default function MapView({
   const queriedLayerGroupRef = useRef(null);
   const routePolylineRef = useRef(null);
 
-  // Filter wards by severity & search
+  // Filter wards safely by severity & search
+  const searchLower = (searchTerm || '').trim().toLowerCase();
   const filteredWards = (wards || []).filter((w) => {
+    if (!w) return false;
     const matchesFilter = activeFilter === 'ALL' || w.riskLevel === activeFilter;
-    const matchesSearch = w.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          w.district.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (w.id && w.id.toLowerCase().includes(searchTerm.toLowerCase()));
+    const nameStr = (w.name || '').toLowerCase();
+    const distStr = (w.district || '').toLowerCase();
+    const idStr = String(w.id || w.rawId || '').toLowerCase();
+    const matchesSearch = !searchLower || nameStr.includes(searchLower) || distStr.includes(searchLower) || idStr.includes(searchLower);
     return matchesFilter && matchesSearch;
   });
 
   const getSeverityBadge = (level) => {
     const cfg = SEVERITY_LEVELS[level] || SEVERITY_LEVELS.SAFE;
     return (
-      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold tracking-wide border ${cfg.badgeBg} ${cfg.textColor} ${cfg.borderColor}`}>
-        {level === 'CRITICAL' && <AlertOctagon className="w-3 h-3 text-red-400 animate-pulse" />}
-        {level === 'WARNING' && <AlertTriangle className="w-3 h-3 text-orange-400" />}
-        {level === 'WATCH' && <Eye className="w-3 h-3 text-amber-400" />}
-        {level === 'SAFE' && <Shield className="w-3 h-3 text-emerald-400" />}
+      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-bold tracking-wide border ${cfg.badgeBg} ${cfg.textColor} ${cfg.borderColor}`}>
+        {level === 'CRITICAL' && <AlertOctagon className="w-3.5 h-3.5 text-red-600 animate-pulse" />}
+        {level === 'WARNING' && <AlertTriangle className="w-3.5 h-3.5 text-orange-600" />}
+        {level === 'WATCH' && <Eye className="w-3.5 h-3.5 text-amber-600" />}
+        {level === 'SAFE' && <Shield className="w-3.5 h-3.5 text-emerald-600" />}
         <span>L{cfg.level} {cfg.label.toUpperCase()}</span>
       </span>
     );
@@ -76,6 +79,8 @@ export default function MapView({
       if (onSimulateSpike) {
         await onSimulateSpike(targetWard.rawId || targetWard.id);
       }
+    } catch (e) {
+      console.warn("[Demo Spike] Handled simulation warning:", e);
     } finally {
       setIsSimulating(false);
     }
@@ -105,39 +110,43 @@ export default function MapView({
       safeZonesLayerGroupRef.current = L.layerGroup().addTo(map);
       queriedLayerGroupRef.current = L.layerGroup().addTo(map);
 
-      // Map Click Event Listener for Location Risk Check
+      // Map Click Event Listener for Location Risk Check (Light Theme Popup)
       map.on('click', (e) => {
-        const { lat, lng } = e.latlng;
-        
-        if (clickPopupRef.current) {
-          map.closePopup(clickPopupRef.current);
-        }
+        try {
+          if (!e || !e.latlng) return;
+          const { lat, lng } = e.latlng;
+          
+          if (clickPopupRef.current) {
+            try { map.closePopup(clickPopupRef.current); } catch (err) {}
+          }
 
-        clickPopupRef.current = L.popup({
-          className: 'custom-map-click-popup',
-          closeButton: true,
-          offset: [0, -10]
-        })
-          .setLatLng([lat, lng])
-          .setContent(`
-            <div style="background: #0f172a; color: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #38bdf8; font-family: monospace; font-size: 11px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-              <div style="font-weight: 800; font-size: 12px; color: #38bdf8; margin-bottom: 4px;">📍 Clicked Location</div>
-              <div>Lat: <strong>${lat.toFixed(4)}° N</strong> • Lng: <strong>${lng.toFixed(4)}° E</strong></div>
-              <div style="margin-top: 6px; color: #f59e0b; font-weight: 700; display: flex; align-items: center; gap: 4px;">
-                <span>⏳ Calculating Landslide & Flood Risk...</span>
+          clickPopupRef.current = L.popup({
+            className: 'custom-map-click-popup',
+            closeButton: true,
+            offset: [0, -10]
+          })
+            .setLatLng([lat, lng])
+            .setContent(`
+              <div style="background: #ffffff; color: #0f172a; padding: 10px; border-radius: 8px; border: 1px solid #2563eb; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; box-shadow: 0 4px 14px rgba(0,0,0,0.12);">
+                <div style="font-weight: 800; font-size: 12px; color: #2563eb; margin-bottom: 4px;">📍 Clicked Location</div>
+                <div>Lat: <strong>${lat.toFixed(4)}° N</strong> • Lng: <strong>${lng.toFixed(4)}° E</strong></div>
+                <div style="margin-top: 6px; color: #d97706; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                  <span>⏳ Calculating Landslide & Flood Risk...</span>
+                </div>
               </div>
-            </div>
-          `)
-          .openOn(map);
+            `)
+            .openOn(map);
 
-        if (onMapClickLocation) {
-          onMapClickLocation(lat, lng);
+          if (typeof onMapClickLocation === 'function') {
+            onMapClickLocation(lat, lng);
+          }
+        } catch (err) {
+          console.warn("[MapView] Map click listener warning:", err);
         }
       });
 
       mapInstanceRef.current = map;
 
-      // Invalidate size shortly after creation to handle settled container dimensions
       setTimeout(() => {
         if (mapInstanceRef.current) {
           mapInstanceRef.current.invalidateSize();
@@ -146,14 +155,14 @@ export default function MapView({
     }
 
     return () => {
-      // Clean up map instance on unmount or mode switch
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+        try {
+          mapInstanceRef.current.remove();
+        } catch (e) {}
         mapInstanceRef.current = null;
       }
     };
   }, [viewMode, onMapClickLocation, isLoading]);
-
 
   // 2. Base Tile Layer Handler (OSM vs OpenTopoMap Topo Contours)
   useEffect(() => {
@@ -161,7 +170,7 @@ export default function MapView({
     if (!map) return;
 
     if (tileLayerRef.current) {
-      map.removeLayer(tileLayerRef.current);
+      try { map.removeLayer(tileLayerRef.current); } catch (e) {}
     }
 
     const tileUrl = (baseTileType === 'topo' || showContours)
@@ -175,18 +184,14 @@ export default function MapView({
 
     const newTileLayer = L.tileLayer(tileUrl, tileOptions);
 
-    newTileLayer.on('tileerror', () => {
-      setTileError(true);
-    });
-    newTileLayer.on('load', () => {
-      setTileError(false);
-    });
+    newTileLayer.on('tileerror', () => setTileError(true));
+    newTileLayer.on('load', () => setTileError(false));
 
     newTileLayer.addTo(map);
     tileLayerRef.current = newTileLayer;
   }, [baseTileType, showContours, viewMode, isLoading]);
 
-  // 3. Render District Boundaries GeoJSON Overlay
+  // 3. Render District Boundaries GeoJSON Overlay (Light Theme Style)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !districtsLayerRef.current) return;
@@ -196,11 +201,11 @@ export default function MapView({
     if (showDistricts) {
       const districtsLayer = L.geoJSON(UTTARAKHAND_DISTRICTS_GEOJSON, {
         style: {
-          color: '#38bdf8',
+          color: '#0284c7',
           weight: 1.5,
-          opacity: 0.65,
-          fillColor: '#0f172a',
-          fillOpacity: 0.12,
+          opacity: 0.7,
+          fillColor: '#0284c7',
+          fillOpacity: 0.06,
           dashArray: '4, 4'
         },
         onEachFeature: (feature, layer) => {
@@ -208,7 +213,7 @@ export default function MapView({
             layer.bindTooltip(`${feature.properties.name} District`, {
               permanent: false,
               direction: 'center',
-              className: 'bg-slate-900 text-cyan-300 font-mono text-[10px] px-1.5 py-0.5 rounded border border-cyan-800'
+              className: 'bg-white text-slate-800 font-sans text-[11px] font-bold px-2 py-0.5 rounded border border-slate-300 shadow-sm'
             });
           }
         }
@@ -236,7 +241,7 @@ export default function MapView({
           if (feature.properties && feature.properties.name) {
             layer.bindTooltip(`🌊 ${feature.properties.name} (${feature.properties.basin})`, {
               sticky: true,
-              className: 'bg-slate-950 text-sky-300 font-mono text-[10px] px-2 py-1 rounded border border-sky-800'
+              className: 'bg-white text-blue-900 font-sans text-[11px] font-bold px-2 py-1 rounded border border-blue-200 shadow-sm'
             });
           }
         }
@@ -245,26 +250,25 @@ export default function MapView({
     }
   }, [showRivers, viewMode, isLoading]);
 
-  // 5. Render Risk Heatmap Layer (leaflet.heat)
+  // 5. Render Risk Heatmap Layer (leaflet.heat safely without click errors)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
     if (heatLayerRef.current) {
-      map.removeLayer(heatLayerRef.current);
+      try { map.removeLayer(heatLayerRef.current); } catch (e) {}
       heatLayerRef.current = null;
     }
 
     if (showHeatmap) {
       const heatPoints = filteredWards
-        .filter(w => w.latitude && w.longitude)
+        .filter(w => w && w.latitude && w.longitude)
         .map(w => [
           w.latitude,
           w.longitude,
           Math.max(0.3, (w.riskScore || 20) / 100.0)
         ]);
 
-      // If user queried a location, include it on the same heatmap
       if (queriedLocation && queriedLocation.latitude && queriedLocation.longitude) {
         heatPoints.push([
           queriedLocation.latitude,
@@ -274,17 +278,22 @@ export default function MapView({
       }
 
       if (heatPoints.length > 0 && typeof L.heatLayer === 'function') {
-        heatLayerRef.current = L.heatLayer(heatPoints, {
-          radius: 40,
-          blur: 25,
-          maxZoom: 12,
-          gradient: {
-            0.2: '#10b981',
-            0.45: '#f59e0b',
-            0.7: '#ea580c',
-            0.95: '#ef4444'
-          }
-        }).addTo(map);
+        try {
+          heatLayerRef.current = L.heatLayer(heatPoints, {
+            radius: 42,
+            blur: 26,
+            maxZoom: 12,
+            interactive: false,
+            gradient: {
+              0.2: '#10b981',
+              0.45: '#f59e0b',
+              0.7: '#f97316',
+              0.95: '#ef4444'
+            }
+          }).addTo(map);
+        } catch (err) {
+          console.warn("[MapView] HeatLayer render warning:", err);
+        }
       }
     }
   }, [showHeatmap, filteredWards, queriedLocation, viewMode, isLoading]);
@@ -306,8 +315,8 @@ export default function MapView({
       className: 'custom-queried-location-marker-container',
       html: `
         <div class="custom-queried-marker">
-          <div class="marker-pin-head" style="background: ${cfg.hex}; box-shadow: 0 0 12px ${cfg.hex}">📍</div>
-          <div class="marker-tag" style="background: #0f172a; border: 2px solid ${cfg.hex}; color: #f8fafc">
+          <div class="marker-pin-head" style="background: ${cfg.hex}; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4)">📍</div>
+          <div class="marker-tag" style="background: #ffffff; border: 2px solid ${cfg.hex}; color: #0f172a">
             <span class="ward-title">${queriedLocation.location_name || 'Checked Location'}</span>
             <span class="ward-score" style="color: ${cfg.hex}">${queriedLocation.danger_factor} / 100</span>
           </div>
@@ -327,7 +336,6 @@ export default function MapView({
 
     const bounds = L.latLngBounds([[lat, lng]]);
 
-    // Evacuation route polyline from queried point to nearest safe zone
     if (queriedLocation.nearest_safe_zone && queriedLocation.nearest_safe_zone.latitude && queriedLocation.nearest_safe_zone.longitude) {
       const sz = queriedLocation.nearest_safe_zone;
       const szLat = Number(sz.latitude);
@@ -336,7 +344,7 @@ export default function MapView({
 
       const routeCoords = [[lat, lng], [szLat, szLng]];
       const polyline = L.polyline(routeCoords, {
-        color: '#38bdf8',
+        color: '#2563eb',
         weight: 4,
         opacity: 0.95,
         dashArray: '6, 6'
@@ -344,13 +352,12 @@ export default function MapView({
 
       polyline.bindTooltip(
         `🛡️ Evacuation Route: ${queriedLocation.location_name} -> ${sz.name} (${sz.distance_km} km ${sz.direction})`,
-        { permanent: true, direction: 'center', className: 'bg-slate-950 text-cyan-200 font-mono text-[10px] border border-cyan-500 px-2 py-0.5 rounded shadow-xl' }
+        { permanent: true, direction: 'center', className: 'bg-white text-blue-900 font-sans text-[11px] font-bold border border-blue-300 px-2 py-0.5 rounded shadow-md' }
       );
 
       queriedLayerGroupRef.current.addLayer(polyline);
     }
 
-    // Auto-fit map viewport to show searched location pin AND evacuation route
     try {
       if (bounds.isValid()) {
         map.fitBounds(bounds, { padding: [60, 60], maxZoom: 12, animate: true, duration: 1.2 });
@@ -358,10 +365,9 @@ export default function MapView({
         map.flyTo([lat, lng], 11, { animate: true, duration: 1.2 });
       }
     } catch (e) {
-      map.panTo([lat, lng]);
+      try { map.panTo([lat, lng]); } catch (err) {}
     }
 
-    // Force map to recalculate container dimensions
     setTimeout(() => {
       if (mapInstanceRef.current) {
         mapInstanceRef.current.invalidateSize();
@@ -369,7 +375,6 @@ export default function MapView({
     }, 150);
 
   }, [queriedLocation, viewMode, isLoading]);
-
 
   // 6. Render Safe Zone Evacuation Markers
   useEffect(() => {
@@ -380,7 +385,7 @@ export default function MapView({
 
     if (showSafeZones && safeZones.length > 0) {
       safeZones.forEach((sz) => {
-        if (!sz.latitude || !sz.longitude) return;
+        if (!sz || !sz.latitude || !sz.longitude) return;
 
         const szIcon = L.divIcon({
           className: 'custom-safezone-marker-container',
@@ -411,12 +416,12 @@ export default function MapView({
     markersLayerGroupRef.current.clearLayers();
 
     if (routePolylineRef.current) {
-      map.removeLayer(routePolylineRef.current);
+      try { map.removeLayer(routePolylineRef.current); } catch (e) {}
       routePolylineRef.current = null;
     }
 
     filteredWards.forEach((ward) => {
-      if (!ward.latitude || !ward.longitude) return;
+      if (!ward || !ward.latitude || !ward.longitude) return;
 
       const isSelected = selectedWard && (selectedWard.id === ward.id || selectedWard.rawId === ward.rawId);
       const isCritical = ward.riskLevel === 'CRITICAL';
@@ -426,8 +431,8 @@ export default function MapView({
         className: 'custom-ward-marker-container',
         html: `
           <div class="custom-ward-marker ${isCritical ? 'is-critical' : ''} ${isSelected ? 'is-selected' : ''}">
-            <div class="marker-dot" style="background: ${cfg.hex}; border: 2px solid ${isSelected ? '#38bdf8' : '#0f172a'}; transform: ${isSelected ? 'scale(1.3)' : 'scale(1)'}"></div>
-            <div class="marker-tag" style="background: #0f172a; border: 1px solid ${isSelected ? '#38bdf8' : cfg.hex}; color: #f8fafc">
+            <div class="marker-dot" style="background: ${cfg.hex}; border: 2px solid ${isSelected ? '#2563eb' : '#ffffff'}; transform: ${isSelected ? 'scale(1.3)' : 'scale(1)'}"></div>
+            <div class="marker-tag" style="background: #ffffff; border: 1.5px solid ${isSelected ? '#2563eb' : cfg.hex}; color: #0f172a font-weight: 700">
               <span class="ward-title">${ward.name}</span>
               <span class="ward-score" style="color: ${cfg.hex}">${ward.riskScore}</span>
             </div>
@@ -440,15 +445,15 @@ export default function MapView({
       const marker = L.marker([ward.latitude, ward.longitude], { icon: customIcon });
       
       marker.on('click', () => {
-        onSelectWard(ward);
+        if (typeof onSelectWard === 'function') {
+          onSelectWard(ward);
+        }
       });
 
       markersLayerGroupRef.current.addLayer(marker);
     });
 
-    // If a ward is selected, fly map to its location & draw evacuation polyline route to nearest safe zone
     if (selectedWard && selectedWard.latitude && selectedWard.longitude) {
-      // Find matching safe zone coordinates
       let targetSz = null;
       if (selectedWard.nearestSafeZone && selectedWard.nearestSafeZone.latitude) {
         targetSz = selectedWard.nearestSafeZone;
@@ -464,30 +469,30 @@ export default function MapView({
 
         routePolylineRef.current = L.polyline(routeCoords, {
           color: '#10b981',
-          weight: 3.5,
+          weight: 4,
           opacity: 0.9,
           dashArray: '8, 8'
         }).addTo(map);
 
         routePolylineRef.current.bindTooltip(
           `🛡️ Evacuation Route: ${selectedWard.name} -> ${targetSz.name} (${selectedWard.nearestSafeZone?.distance_km || 1.2} km)`,
-          { permanent: true, direction: 'center', className: 'bg-emerald-950 text-emerald-200 text-[10px] font-mono border border-emerald-600 px-2 py-0.5 rounded shadow-xl' }
+          { permanent: true, direction: 'center', className: 'bg-white text-emerald-900 text-[11px] font-bold border border-emerald-300 px-2 py-0.5 rounded shadow-md' }
         );
       }
     }
   }, [filteredWards, selectedWard, safeZones, onSelectWard, viewMode, isLoading]);
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-[#0b1120] relative overflow-hidden">
-      {/* Top Map Control Bar */}
-      <div className="bg-[#161f33] border-b border-[#26354f] px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs z-10">
+    <div className="flex-1 flex flex-col min-h-0 bg-slate-50 relative overflow-hidden rounded-xl border border-slate-200/90 shadow-2xs">
+      {/* 100% Light Theme Map Control Bar */}
+      <div className="bg-white border-b border-slate-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs z-10">
         {/* Left: View Mode Toggles & Search */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-slate-900 p-0.5 rounded border border-slate-800" role="group" aria-label="View mode selection">
+          <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200" role="group" aria-label="View mode selection">
             <button
               onClick={() => setViewMode('map')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold ${
-                viewMode === 'map' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                viewMode === 'map' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <MapIcon className="w-3.5 h-3.5" />
@@ -495,8 +500,8 @@ export default function MapView({
             </button>
             <button
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold ${
-                viewMode === 'grid' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                viewMode === 'grid' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Grid className="w-3.5 h-3.5" />
@@ -504,8 +509,8 @@ export default function MapView({
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold ${
-                viewMode === 'table' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                viewMode === 'table' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <ListFilter className="w-3.5 h-3.5" />
@@ -513,24 +518,33 @@ export default function MapView({
             </button>
           </div>
 
-          {/* Search Ward */}
-          <input
-            type="text"
-            placeholder="Filter by ward / district..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="bg-slate-900 border border-slate-700 text-slate-200 placeholder-slate-500 px-3 py-1 rounded text-xs focus:outline-none focus:border-blue-500 w-44 sm:w-60"
-          />
+          {/* Search Ward Filter */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Filter ward or district..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-400 px-3 py-1.5 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white w-44 sm:w-60 transition-all"
+            />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')} 
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs font-bold"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Right: Layer Toggles & Demo Button */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Live Demo Rainfall Spike Injection Button */}
           <button
             onClick={handleDemoSpikeClick}
             disabled={isSimulating}
             title="Inject simulated torrential rainfall to trigger risk escalation & live WhatsApp/SMS alert"
-            className="flex items-center gap-1.5 px-3 py-1 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs border border-amber-300 shadow-md transition-all active:scale-95 disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs border border-amber-400 shadow-xs transition-all active:scale-95 disabled:opacity-50"
           >
             <Zap className={`w-3.5 h-3.5 text-slate-950 ${isSimulating ? 'animate-bounce' : ''}`} />
             <span>{isSimulating ? 'Injecting Spike...' : '⚡ Demo Spike Test'}</span>
@@ -539,11 +553,11 @@ export default function MapView({
           {viewMode === 'map' && (
             <>
               {/* Base Layer Switcher (OSM vs Topo) */}
-              <div className="flex items-center bg-slate-900 p-0.5 rounded border border-slate-800">
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
                 <button
                   onClick={() => setBaseTileType('topo')}
-                  className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
-                    baseTileType === 'topo' ? 'bg-cyan-800 text-cyan-100' : 'text-slate-400 hover:text-white'
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                    baseTileType === 'topo' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                   title="OpenTopoMap: High resolution elevation contours & terrain"
                 >
@@ -551,21 +565,21 @@ export default function MapView({
                 </button>
                 <button
                   onClick={() => setBaseTileType('osm')}
-                  className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
-                    baseTileType === 'osm' ? 'bg-blue-800 text-blue-100' : 'text-slate-400 hover:text-white'
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                    baseTileType === 'osm' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
-                  title="OpenStreetMap: Roads & labels view"
+                  title="OpenStreetMap: Standard roads view"
                 >
                   Standard Roads
                 </button>
               </div>
 
-              <span className="text-[11px] text-slate-400 font-mono hidden lg:inline">GIS Layers:</span>
+              <span className="text-[11px] text-slate-500 font-mono hidden lg:inline">GIS Layers:</span>
 
               <button
                 onClick={() => setShowDistricts(!showDistricts)}
-                className={`px-2 py-1 rounded border text-[11px] font-mono transition-colors ${
-                  showDistricts ? 'bg-slate-800 text-sky-300 border-sky-700/60' : 'bg-slate-900/60 text-slate-500 border-slate-800'
+                className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all ${
+                  showDistricts ? 'bg-sky-50 text-sky-700 border-sky-300' : 'bg-slate-50 text-slate-500 border-slate-200'
                 }`}
               >
                 Districts
@@ -573,8 +587,8 @@ export default function MapView({
 
               <button
                 onClick={() => setShowHeatmap(!showHeatmap)}
-                className={`px-2 py-1 rounded border text-[11px] font-mono transition-colors ${
-                  showHeatmap ? 'bg-slate-800 text-amber-300 border-amber-700/60' : 'bg-slate-900/60 text-slate-500 border-slate-800'
+                className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all ${
+                  showHeatmap ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-slate-50 text-slate-500 border-slate-200'
                 }`}
               >
                 Risk Heatmap
@@ -582,8 +596,8 @@ export default function MapView({
 
               <button
                 onClick={() => setShowRivers(!showRivers)}
-                className={`px-2 py-1 rounded border text-[11px] font-mono transition-colors ${
-                  showRivers ? 'bg-slate-800 text-blue-300 border-blue-700/60' : 'bg-slate-900/60 text-slate-500 border-slate-800'
+                className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all ${
+                  showRivers ? 'bg-blue-50 text-blue-700 border-blue-300' : 'bg-slate-50 text-slate-500 border-slate-200'
                 }`}
               >
                 Rivers
@@ -591,8 +605,8 @@ export default function MapView({
 
               <button
                 onClick={() => setShowSafeZones(!showSafeZones)}
-                className={`px-2 py-1 rounded border text-[11px] font-mono transition-colors ${
-                  showSafeZones ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60' : 'bg-slate-900/60 text-slate-500 border-slate-800'
+                className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all ${
+                  showSafeZones ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-50 text-slate-500 border-slate-200'
                 }`}
               >
                 🛡️ Safe Zones ({safeZones.length})
@@ -603,19 +617,19 @@ export default function MapView({
       </div>
 
       {/* Main Canvas / Grid / List Container */}
-      <div className="flex-1 relative overflow-auto p-2 sm:p-4 bg-[#0b1120]">
+      <div className="flex-1 relative overflow-auto p-2 sm:p-4 bg-slate-50">
 
         {/* Operational Error State Banner */}
         {error && (
-          <div className="mb-4 bg-red-950/90 border border-red-700/80 p-3 rounded-lg flex items-center justify-between text-xs text-red-200 shadow-xl">
+          <div className="mb-4 bg-red-50 border border-red-200 p-3.5 rounded-lg flex items-center justify-between text-xs text-red-800 shadow-sm animate-in fade-in">
             <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
               <span>Could not reach ward telemetry server — retrying in 30s ({error})</span>
             </div>
             {onRetry && (
               <button
                 onClick={onRetry}
-                className="px-2.5 py-1 bg-red-900 hover:bg-red-800 text-white rounded border border-red-600 text-xs font-semibold transition-colors"
+                className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md text-xs font-bold transition-all shadow-2xs"
               >
                 Retry Now
               </button>
@@ -625,18 +639,18 @@ export default function MapView({
 
         {/* Offline Tile Error Notice */}
         {tileError && viewMode === 'map' && (
-          <div className="absolute top-6 left-6 z-20 bg-amber-950/90 border border-amber-700 p-2.5 rounded text-xs text-amber-200 flex items-center gap-2 shadow-xl max-w-md">
-            <Compass className="w-4 h-4 text-amber-400 shrink-0 animate-spin" />
-            <span>Map Tile Advisory: Remote base tiles loading slowly — vector ward markers & GIS layers remain fully operational.</span>
+          <div className="absolute top-6 left-6 z-20 bg-amber-50 border border-amber-200 p-3 rounded-lg text-xs text-amber-900 flex items-center gap-2 shadow-md max-w-md animate-in fade-in">
+            <Compass className="w-4 h-4 text-amber-600 shrink-0 animate-spin" />
+            <span>Map Tile Advisory: Remote base tiles loading slowly — vector markers & GIS layers remain fully operational.</span>
           </div>
         )}
 
         {/* Loading State Skeleton */}
         {isLoading && (
-          <div className="w-full h-full min-h-[500px] flex items-center justify-center bg-[#0d1424] border border-[#26354f] rounded-lg">
+          <div className="w-full h-full min-h-[580px] flex items-center justify-center bg-slate-100/70 border border-slate-200 rounded-lg">
             <div className="text-center space-y-3 p-6">
-              <RefreshCw className="w-8 h-8 text-blue-400 animate-spin mx-auto" />
-              <p className="text-sm font-mono text-slate-300">Synchronizing GIS Telemetry & Leaflet Map...</p>
+              <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
+              <p className="text-sm font-bold text-slate-800">Synchronizing GIS Telemetry & Leaflet Map...</p>
               <p className="text-xs text-slate-500 font-mono">Fetching latest sensor readings & ML hazard scores</p>
             </div>
           </div>
@@ -644,37 +658,37 @@ export default function MapView({
 
         {/* MODE 1: LEAFLET GIS MAP */}
         {!isLoading && viewMode === 'map' && (
-          <div className="w-full h-full min-h-[580px] bg-[#0d1424] border border-[#26354f] rounded-lg relative overflow-hidden">
+          <div className="w-full h-full min-h-[580px] bg-slate-200 border border-slate-300 rounded-lg relative overflow-hidden shadow-inner">
             <div ref={mapContainerRef} className="w-full h-full min-h-[580px] z-0" />
 
-            {/* Map Legend Overlay */}
-            <div className="absolute bottom-4 left-4 z-10 bg-slate-950/90 border border-slate-800 p-3 rounded-lg text-xs font-mono backdrop-blur-sm space-y-1.5 shadow-xl">
-              <span className="text-[10px] text-slate-400 uppercase tracking-widest block border-b border-slate-800 pb-1 font-sans">
-                Uttarakhand Landslide & Flood Hazard Index
+            {/* Light Theme Map Legend Overlay */}
+            <div className="absolute bottom-4 left-4 z-10 bg-white/95 border border-slate-200 p-3.5 rounded-xl text-xs shadow-lg backdrop-blur-sm space-y-2">
+              <span className="text-[10px] text-slate-500 uppercase tracking-widest block border-b border-slate-100 pb-1 font-bold font-mono">
+                Uttarakhand Hazard Index Legend
               </span>
-              <div className="flex items-center gap-4 text-[11px]">
-                <div className="flex items-center gap-1 text-red-400 font-bold">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
-                  <span>CRITICAL (Score ≥82)</span>
+              <div className="flex flex-wrap items-center gap-3.5 text-[11px]">
+                <div className="flex items-center gap-1.5 text-red-700 font-extrabold">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse"></span>
+                  <span>CRITICAL (≥82)</span>
                 </div>
-                <div className="flex items-center gap-1 text-orange-400 font-bold">
+                <div className="flex items-center gap-1.5 text-orange-700 font-extrabold">
                   <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
-                  <span>WARNING (Score 60-81)</span>
+                  <span>WARNING (60-81)</span>
                 </div>
-                <div className="flex items-center gap-1 text-amber-400 font-bold">
+                <div className="flex items-center gap-1.5 text-amber-700 font-extrabold">
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                  <span>WATCH (Score 35-59)</span>
+                  <span>WATCH (35-59)</span>
                 </div>
-                <div className="flex items-center gap-1 text-emerald-400 font-bold">
+                <div className="flex items-center gap-1.5 text-emerald-700 font-extrabold">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  <span>SAFE (Score &lt;35)</span>
+                  <span>SAFE (&lt;35)</span>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* MODE 2: MATRIX GRID VIEW */}
+        {/* MODE 2: MATRIX GRID VIEW (Light Theme Cards) */}
         {!isLoading && viewMode === 'grid' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredWards.map((ward) => {
@@ -684,47 +698,47 @@ export default function MapView({
                 <div
                   key={ward.id || ward.rawId}
                   onClick={() => onSelectWard(ward)}
-                  className={`rounded-lg p-3.5 border transition-all cursor-pointer ${
+                  className={`rounded-xl p-4 border transition-all cursor-pointer hover-card-lift ${
                     isSelected
-                      ? 'bg-slate-900 border-blue-500 ring-2 ring-blue-500/40 shadow-lg'
-                      : 'bg-[#161f33] border-[#26354f] hover:border-slate-500'
+                      ? 'bg-blue-50/90 border-blue-600 ring-2 ring-blue-500/30 shadow-md'
+                      : 'bg-white border-slate-200 hover:border-blue-300 shadow-2xs'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div>
-                      <span className="text-[10px] font-mono text-slate-400">{ward.id} • {ward.district} District</span>
-                      <h3 className="text-sm font-bold text-white leading-tight">{ward.name}</h3>
+                      <span className="text-[10px] font-mono text-slate-500 font-bold">{ward.id} • {ward.district} District</span>
+                      <h3 className="text-sm font-black text-slate-900 leading-tight">{ward.name}</h3>
                     </div>
                     {getSeverityBadge(ward.riskLevel)}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 my-2 text-xs font-mono bg-slate-950/60 p-2 rounded border border-slate-800">
+                  <div className="grid grid-cols-2 gap-2 my-3 text-xs font-mono bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                     <div>
-                      <span className="text-[10px] text-slate-400 font-sans block">72h Rain</span>
-                      <span className="font-bold text-cyan-400 tabular-nums">{ward.sensors?.rain72h || ward.latest_reading?.rainfall_72h_mm || 0} mm</span>
+                      <span className="text-[10px] text-slate-500 font-sans font-medium block">72h Rain</span>
+                      <span className="font-extrabold text-blue-700 tabular-nums">{ward.sensors?.rain72h || ward.latest_reading?.rainfall_72h_mm || 0} mm</span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-400 font-sans block">Soil Saturation</span>
-                      <span className={`font-bold tabular-nums ${
-                        (ward.sensors?.soilMoisture || ward.latest_reading?.soil_moisture_pct || 0) > 80 ? 'text-red-400' : 'text-amber-400'
+                      <span className="text-[10px] text-slate-500 font-sans font-medium block">Soil Moisture</span>
+                      <span className={`font-extrabold tabular-nums ${
+                        (ward.sensors?.soilMoisture || ward.latest_reading?.soil_moisture_pct || 0) > 80 ? 'text-red-600' : 'text-amber-600'
                       }`}>
                         {ward.sensors?.soilMoisture || ward.latest_reading?.soil_moisture_pct || 0}% VWC
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-400 font-sans block">Slope Angle</span>
-                      <span className="text-slate-300 tabular-nums">{ward.slopeAngle || 35}°</span>
+                      <span className="text-[10px] text-slate-500 font-sans font-medium block">Slope Angle</span>
+                      <span className="text-slate-800 font-bold tabular-nums">{ward.slopeAngle || 35}°</span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-400 font-sans block">Risk Score</span>
-                      <span className="font-bold text-slate-200 tabular-nums">{ward.riskScore}/100</span>
+                      <span className="text-[10px] text-slate-500 font-sans font-medium block">Hazard Score</span>
+                      <span className="font-black text-slate-900 tabular-nums">{ward.riskScore}/100</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100 font-medium">
                     <span>Pop: {ward.population?.toLocaleString('en-IN')}</span>
-                    <span className="text-blue-400 font-medium flex items-center gap-1 hover:underline">
-                      Inspect Telemetry <ChevronRight className="w-3.5 h-3.5" />
+                    <span className="text-blue-600 font-bold flex items-center gap-1 hover:underline">
+                      Inspect <ChevronRight className="w-3.5 h-3.5" />
                     </span>
                   </div>
                 </div>
@@ -733,12 +747,12 @@ export default function MapView({
           </div>
         )}
 
-        {/* MODE 3: PRIORITY LIST TABLE */}
+        {/* MODE 3: PRIORITY LIST TABLE (Light Theme Table) */}
         {!isLoading && viewMode === 'table' && (
-          <div className="bg-[#161f33] border border-[#26354f] rounded-lg overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 font-mono">
+                <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-mono">
                   <tr>
                     <th className="p-3">SEVERITY</th>
                     <th className="p-3">WARD NAME</th>
@@ -750,9 +764,9 @@ export default function MapView({
                     <th className="p-3 text-center">ACTION</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/80">
+                <tbody className="divide-y divide-slate-100">
                   {filteredWards
-                    .sort((a, b) => b.riskScore - a.riskScore)
+                    .sort((a, b) => (b.riskScore || 0) - (a.riskScore || 0))
                     .map((ward) => {
                       const isSelected = selectedWard && (selectedWard.id === ward.id || selectedWard.rawId === ward.rawId);
 
@@ -761,25 +775,25 @@ export default function MapView({
                           key={ward.id || ward.rawId}
                           onClick={() => onSelectWard(ward)}
                           className={`cursor-pointer transition-colors ${
-                            isSelected ? 'bg-blue-950/60' : 'hover:bg-slate-900/60'
+                            isSelected ? 'bg-blue-50/80 font-semibold' : 'hover:bg-slate-50'
                           }`}
                         >
                           <td className="p-3">{getSeverityBadge(ward.riskLevel)}</td>
-                          <td className="p-3 font-bold text-white">
+                          <td className="p-3 font-bold text-slate-900">
                             {ward.name}
-                            <span className="block text-[10px] font-mono text-slate-400">Safe Zone: {ward.safeZoneName}</span>
+                            <span className="block text-[10px] font-mono text-slate-500 font-normal">Safe Zone: {ward.safeZoneName}</span>
                           </td>
-                          <td className="p-3 text-slate-300">{ward.district}</td>
-                          <td className="p-3 text-right font-mono font-bold text-cyan-400 tabular-nums">
+                          <td className="p-3 text-slate-700 font-medium">{ward.district}</td>
+                          <td className="p-3 text-right font-mono font-bold text-blue-700 tabular-nums">
                             {ward.sensors?.rain72h || ward.latest_reading?.rainfall_72h_mm || 0} mm
                           </td>
-                          <td className="p-3 text-right font-mono font-bold text-amber-400 tabular-nums">
+                          <td className="p-3 text-right font-mono font-bold text-amber-600 tabular-nums">
                             {ward.sensors?.soilMoisture || ward.latest_reading?.soil_moisture_pct || 0}% VWC
                           </td>
-                          <td className="p-3 text-right font-mono text-slate-300 tabular-nums">
+                          <td className="p-3 text-right font-mono text-slate-700 tabular-nums">
                             {ward.slopeAngle || 35}°
                           </td>
-                          <td className="p-3 text-right font-mono text-slate-300 tabular-nums">
+                          <td className="p-3 text-right font-mono text-slate-700 tabular-nums">
                             {ward.population?.toLocaleString('en-IN')}
                           </td>
                           <td className="p-3 text-center">
@@ -788,7 +802,7 @@ export default function MapView({
                                 e.stopPropagation();
                                 onSelectWard(ward);
                               }}
-                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-300 rounded border border-slate-700 text-[11px] font-medium"
+                              className="px-3 py-1 bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-800 rounded-md border border-slate-200 text-[11px] font-bold transition-all"
                             >
                               Inspect
                             </button>

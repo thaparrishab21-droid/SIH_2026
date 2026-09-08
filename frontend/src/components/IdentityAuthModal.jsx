@@ -247,7 +247,7 @@ export default function IdentityAuthModal({ isOpen, onClose, onLoginSuccess }) {
 
                   <button
                     type="submit"
-                    className="w-full bg-slate-950 hover:bg-slate-800 text-white font-bold text-xs py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-sm"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-xs"
                   >
                     <span>Generate Emergency OTP</span>
                     <Zap className="w-4 h-4 text-amber-400 fill-amber-400" />
